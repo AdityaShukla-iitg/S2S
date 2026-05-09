@@ -1,20 +1,28 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Fluxio Live x School to Startup (S2S) Deliverable
 
-# Run and deploy your AI Studio app
+Official handover and strategic analysis for the S2S Hero Ad campaign.
 
-This contains everything you need to run your app locally.
+## Overview
+This platform serves as the technical and creative handover portal for the vertical ad campaign delivered to School to Startup. It includes the finalized video asset, strategic psychological breakdowns, and a 10-day post-launch execution matrix.
 
-View your app in AI Studio: https://ai.studio/apps/d765d1c9-a3f3-4302-ac2f-1f7b576c028d
+## Key Sections
+- **Deliverable Hub**: 9:16 Vertical Ad player with direct download and cloud-viewing options.
+- **Strategic Architecture**: Analysis of the psychological arc (FOMO to Clarity) and frame-by-frame triggers.
+- **Execution Matrix**: A 10-day roadmap for social distribution and conversion optimization.
+- **AI Production Strategy**: Documentation of the hybrid-AI visual engineering workflow.
+- **Legal Handover**: Ownership release and distribution rights protocols.
 
-## Run Locally
+## Tech Stack
+- React 19 + TypeScript
+- Vite
+- Tailwind CSS 4.0
+- Motion (Animations)
+- Lucide React (Iconography)
 
-**Prerequisites:**  Node.js
+## Usage
+1. Clone the repository.
+2. Run `npm install`.
+3. Run `npm run dev` to launch the portal locally.
+4. Run `npm run build` for production deployment.
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Developed by Fluxio Live Creative Agency.
