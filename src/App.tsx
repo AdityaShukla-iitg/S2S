@@ -206,11 +206,19 @@ export default function App() {
           </button>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex gap-10">
+          <div className="hidden md:flex gap-10 items-center">
             <NavLink mode="intro" label="Home" />
             <NavLink mode="s2s" label="S2S" />
             <NavLink mode="mission" label="Mission Samvedna" />
             <NavLink mode="proof" label="Proof Stack" />
+            <a 
+              href="https://fluxio.live" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="px-4 py-1.5 bg-zinc-100 hover:bg-white text-black text-[9px] font-bold uppercase tracking-widest rounded transition-all"
+            >
+              Visit Website
+            </a>
           </div>
 
           {/* Mobile Toggle */}
@@ -236,6 +244,14 @@ export default function App() {
                 <NavLink mode="s2s" label="S2S" />
                 <NavLink mode="mission" label="Mission Samvedna" />
                 <NavLink mode="proof" label="Proof Stack" />
+                <a 
+                  href="https://fluxio.live" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="mt-2 px-6 py-3 bg-zinc-100 text-black text-[10px] font-bold uppercase tracking-widest rounded w-full"
+                >
+                  Visit fluxio.live
+                </a>
               </div>
             </motion.div>
           )}
@@ -280,7 +296,7 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-                  <div className="space-y-6">
+                  <div>
                     <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-100 mb-6 font-mono">[01] Active Projects</h2>
                     <div className="space-y-4">
                       {Object.keys(projects).map((key) => (
@@ -296,6 +312,20 @@ export default function App() {
                           <ArrowRight className="h-4 w-4 text-zinc-700 group-hover:text-yellow-500 transition-colors" />
                         </button>
                       ))}
+                    </div>
+                    
+                    <div className="mt-12 pt-8 border-t border-zinc-900">
+                      <span className="label-mini mb-4 block">Ecosystem</span>
+                      <h3 className="text-sm font-bold uppercase text-zinc-300 mb-4 tracking-widest">Official Website</h3>
+                      <a 
+                        href="https://fluxio.live" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-zinc-500 hover:text-white transition-colors group"
+                      >
+                        <span className="text-2xl font-bold tracking-tighter uppercase italic">fluxio.live</span>
+                        <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                      </a>
                     </div>
                   </div>
                 </div>
@@ -510,6 +540,7 @@ export default function App() {
             <p className="text-[10px] text-zinc-600 uppercase tracking-[0.3em]">Built for the School to Startup Student Program</p>
           </div>
           <div className="flex gap-10 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+            <a href="https://fluxio.live" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Main Site</a>
             <a href="mailto:adityashukla@fluxio.live" className="hover:text-white transition-colors">Contact Us</a>
           </div>
           <div className="text-[10px] font-mono text-zinc-800">
