@@ -20,49 +20,7 @@ import {
   Command
 } from 'lucide-react';
 
-// Firebase imports
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-
-// Error handling helper
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: 'anonymous', 
-      email: null,
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
+// Form data is sent directly to Gmail via mailto: links as requested.
 type ViewMode = 'portal' | 's2s' | 'mission' | 'proof' | 'proposal';
 
 function AnalysisCard({ title, why, insight }: { title: string; why: string; insight: string; key?: React.Key }) {
@@ -264,7 +222,7 @@ export default function App() {
     </button>
   );
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     
@@ -281,17 +239,57 @@ export default function App() {
       approval: formData.get('approval')?.toString() || '',
       notes: formData.get('notes')?.toString() || '',
       selectedPlan: selectedPlan || 'Not Selected',
-      createdAt: serverTimestamp(),
     };
 
-    try {
-      await addDoc(collection(db, 'proposal_requests'), data);
+    const recipient = "adityashukla.available@gmail.com";
+    const subject = `[FLUXIO LIVE] New Partnership Proposal: ${data.selectedPlan}`;
+    const body = `
+PARTNERSHIP PROPOSAL REQUEST
+-----------------------------------------
+Selected Plan: ${data.selectedPlan}
+
+Q1. Main Goal: 
+${data.goal}
+
+Q2. Primary Audience: 
+${data.audience}
+
+Q3. Platforms: 
+${data.platforms}
+
+Q4. Existing Content: 
+${data.existingContent}
+
+Q5. Brand Tone: 
+${data.tone}
+
+Q6. Specific Program/Offer: 
+${data.promotion}
+
+Q7. Brand Kit Available: 
+${data.brandKit}
+
+Q8. Deadline Requirement: 
+${data.deadline}
+
+Q9. Approval Structure: 
+${data.approval}
+
+Q10. Additional Notes:
+${data.notes || 'None'}
+
+-----------------------------------------
+Submitted via Fluxio Live Portal
+    `.trim();
+
+    const mailtoUrl = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    
+    window.location.href = mailtoUrl;
+    
+    setTimeout(() => {
       setFormSubmitted(true);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'proposal_requests');
-    } finally {
       setSubmitting(false);
-    }
+    }, 1000);
   };
 
   return (
@@ -365,7 +363,7 @@ export default function App() {
         </AnimatePresence>
       </nav>
 
-      <div className="flex-1 mt-16 overflow-x-hidden">
+      <div className="flex-1 mt-16 overflow-x-hidden snap-y snap-mandatory scroll-smooth overflow-y-auto">
         <AnimatePresence mode="wait">
           {currentView === 'portal' ? (
             <motion.div
@@ -376,7 +374,7 @@ export default function App() {
               className="w-full"
             >
               {/* Portal Landing */}
-              <section className="w-full max-w-[1600px] mx-auto py-16 md:py-24 px-6 md:px-12">
+              <section className="w-full max-w-[1600px] mx-auto py-16 md:py-24 px-6 md:px-12 min-h-screen flex flex-col justify-center snap-start">
                 <div className="mb-20">
                   <span className="label-mini mb-4 block">Ecosystem Hub</span>
                   <h1 className="text-5xl md:text-8xl font-bold tracking-tighter text-white leading-[0.9] uppercase">
@@ -423,7 +421,7 @@ export default function App() {
                 </div>
 
                 {/* About Section (Original content preserved) */}
-                <div className="mt-32 pt-20 border-t border-zinc-900">
+                <div className="mt-32 pt-20 border-t border-zinc-900 snap-start py-20">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-20">
                     <div>
                       <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-100 mb-6 font-mono">Mission Statement</h2>
@@ -469,7 +467,7 @@ export default function App() {
               className="w-full bg-white text-black min-h-screen"
             >
               {/* Hero Section */}
-              <section className="bg-black text-white min-h-[80vh] flex flex-col justify-center items-center text-center px-4 md:px-6 relative overflow-hidden">
+              <section className="bg-black text-white min-h-screen flex flex-col justify-center items-center text-center px-4 md:px-6 relative overflow-hidden snap-start">
                 <div className="absolute top-10 left-6 right-6 flex justify-between z-10 w-full max-w-7xl mx-auto px-4">
                   <span className="text-[10px] font-bold tracking-[0.2em] text-[#FF3E3E] uppercase">Fluxio Live</span>
                   <span className="text-[10px] font-bold tracking-[0.2em] text-[#FF3E3E] uppercase">× School2Startup</span>
@@ -484,7 +482,7 @@ export default function App() {
               </section>
 
               {/* About Partnership */}
-              <section className="py-20 md:py-24 px-4 md:px-6 bg-white text-black overflow-hidden">
+              <section className="py-20 md:py-24 px-4 md:px-6 bg-white text-black overflow-hidden min-h-screen flex items-center snap-start">
                 <div className="max-w-7xl mx-auto border-y border-[#006241]/10 py-16 flex flex-col md:flex-row gap-12 md:gap-24 items-center">
                   <div className="flex-1">
                     <h2 className="text-2xl md:text-3xl font-bold leading-tight uppercase font-['Bebas_Neue'] tracking-tight">School2Startup is a student entrepreneurship platform focused on practical learning.</h2>
@@ -496,7 +494,7 @@ export default function App() {
               </section>
 
               {/* The Campaign */}
-              <section className="bg-black text-white py-24 px-4 md:px-6">
+              <section className="bg-black text-white py-24 px-4 md:px-6 min-h-screen flex items-center snap-start">
                 <div className="max-w-7xl mx-auto">
                   <span className="text-[#006241] font-bold tracking-widest text-[10px] uppercase mb-12 block font-mono">The Campaign Architecture</span>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-[1px] bg-zinc-900 border border-zinc-900">
@@ -677,7 +675,7 @@ export default function App() {
               </section>
 
               {/* Pricing Table Section */}
-              <section className="bg-black py-24 px-4 md:px-6">
+              <section className="bg-black py-24 px-4 md:px-6 min-h-screen flex flex-col justify-center snap-start">
                 <div className="max-w-7xl mx-auto">
                   <div className="text-center mb-20 px-6">
                     <span className="text-[#C0272D] text-[10px] font-bold tracking-[4px] uppercase mb-4 block">Partnership Plans</span>
@@ -687,30 +685,31 @@ export default function App() {
                     </p>
                   </div>
 
-                  <div className="md:hidden space-y-8 px-4">
+                  <div className="md:hidden space-y-6 px-2">
                     {[
                       { name: "Starter", price: "₹999/week", color: "white", highlights: ["1 Video Ad", "1 Audience", "48hr Delivery"] },
                       { name: "Growth", price: "₹2,199/week", color: "#006241", highlights: ["2 Video Ads", "3 Carousels", "2 Audiences", "48hr Delivery"] },
                       { name: "Partner", price: "₹2,999/week", color: "#C0272D", highlights: ["4 Video Ads", "5 Carousels", "All Audiences", "24hr Delivery"] }
                     ].map((plan) => (
-                      <div key={plan.name} className="bg-zinc-950 border border-zinc-900 p-8 rounded-sm relative overflow-hidden group">
+                      <div key={plan.name} className="bg-zinc-950 border border-zinc-900 p-6 rounded-lg relative overflow-hidden group shadow-xl">
                         <div className="absolute top-0 right-0 p-4">
-                          <span className="text-[10px] font-mono text-zinc-800">Tier::{plan.name.toUpperCase()}</span>
+                          <span className="text-[8px] font-mono text-zinc-700 tracking-tighter uppercase whitespace-nowrap">Tier::{plan.name}</span>
                         </div>
-                        <h3 className="font-['Bebas_Neue'] text-4xl mb-2" style={{ color: plan.color }}>{plan.name}</h3>
-                        <div className="font-['Bebas_Neue'] text-2xl mb-6 text-white">{plan.price}</div>
-                        <ul className="space-y-3 mb-10">
+                        <h3 className="font-['Bebas_Neue'] text-3xl mb-1" style={{ color: plan.color }}>{plan.name}</h3>
+                        <div className="font-['Bebas_Neue'] text-xl mb-4 text-white opacity-80">{plan.price}</div>
+                        <ul className="space-y-2 mb-8">
                           {plan.highlights.map((h, i) => (
-                            <li key={i} className="flex items-center gap-3 text-xs text-zinc-400 uppercase tracking-widest">
-                              <Check className="w-3 h-3" style={{ color: plan.color }} /> {h}
+                            <li key={i} className="flex items-center gap-2 text-[10px] text-zinc-500 uppercase tracking-wider font-medium">
+                              <Check className="w-3 h-3 flex-shrink-0" style={{ color: plan.color }} /> 
+                              <span>{h}</span>
                             </li>
                           ))}
                         </ul>
                         <button 
                           onClick={() => { setSelectedPlan(plan.name); document.querySelector('#discovery-form')?.scrollIntoView({ behavior: 'smooth' }); }}
-                          className={`w-full py-4 text-[10px] font-bold uppercase tracking-[0.3em] transition-all ${selectedPlan === plan.name ? 'bg-white text-black' : 'bg-zinc-900 text-white border border-zinc-800 hover:bg-white hover:text-black'}`}
+                          className={`w-full py-4 text-[9px] font-black uppercase tracking-[0.4em] transition-all rounded-sm ${selectedPlan === plan.name ? 'bg-white text-black' : 'bg-zinc-900 text-white border border-zinc-800 hover:bg-white hover:text-black'}`}
                         >
-                          {selectedPlan === plan.name ? 'Selected' : `Initiate ${plan.name} →`}
+                          {selectedPlan === plan.name ? 'ACTIVE' : `SELECT ${plan.name} →`}
                         </button>
                       </div>
                     ))}
@@ -789,7 +788,7 @@ export default function App() {
               </section>
 
               {/* Proposal Footer */}
-              <section className="bg-black py-32 text-center px-6 border-t-2 border-[#FF3E3E]">
+              <section className="bg-black py-32 text-center px-6 border-t-2 border-[#FF3E3E] snap-start min-h-screen flex flex-col justify-center">
                 <h2 className="font-['Bebas_Neue'] text-8xl md:text-[10rem] leading-none mb-4 text-white hover:text-[#FF3E3E] transition-colors cursor-default">MAY 2026</h2>
                 <p className="font-bold text-xs mb-16 uppercase tracking-[0.4em] text-zinc-500">Fluxio Live x School2Startup Partnership Window</p>
                 <div className="flex justify-center">
