@@ -1,10 +1,71 @@
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Download, Play, Target, Music, Eye, Menu, X, ArrowRight } from 'lucide-react';
-import { useState } from 'react';
+import { 
+  Download, 
+  Play, 
+  Target, 
+  Music, 
+  Eye, 
+  Menu, 
+  X, 
+  ArrowRight,
+  TrendingUp,
+  Sparkles,
+  Zap,
+  Users,
+  Check,
+  ChevronRight,
+  Volume2,
+  Pause,
+  Command
+} from 'lucide-react';
 
-type ViewMode = 'intro' | 's2s' | 'mission' | 'proof';
+// Firebase imports
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import firebaseConfig from '../firebase-applet-config.json';
 
-function AnalysisCard({ title, why, insight }: { title: string; why: string; insight: string }) {
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Error handling helper
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: 'anonymous', 
+      email: null,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+type ViewMode = 'portal' | 's2s' | 'mission' | 'proof' | 'proposal';
+
+function AnalysisCard({ title, why, insight }: { title: string; why: string; insight: string; key?: React.Key }) {
   return (
     <div className="bg-zinc-950 border border-zinc-900 p-6 rounded-lg group hover:border-zinc-700 transition-colors">
       <h4 className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest mb-4">Focus Frame</h4>
@@ -23,8 +84,18 @@ function AnalysisCard({ title, why, insight }: { title: string; why: string; ins
 }
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<ViewMode>('intro');
+  const [currentView, setCurrentView] = useState<ViewMode>('portal');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [formSubmitted, setFormSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+
+  const renderValue = (val: any, type?: string, color?: string) => {
+    if (val === true) return <span className="text-[#006241] font-bold text-xl">✦</span>;
+    if (val === "") return null;
+    if (type === 'price') return <span className="font-['Bebas_Neue'] text-3xl" style={{ color }}>{val}</span>;
+    return val;
+  };
 
   const roadmap = [
     {
@@ -177,7 +248,7 @@ export default function App() {
     }
   };
 
-  const project = currentView !== 'intro' ? projects[currentView] : null;
+  const project = !['portal', 'proposal'].includes(currentView) ? projects[currentView as keyof typeof projects] : null;
 
   const NavLink = ({ mode, label }: { mode: ViewMode, label: string }) => (
     <button
@@ -193,13 +264,43 @@ export default function App() {
     </button>
   );
 
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    
+    const formData = new FormData(e.target as HTMLFormElement);
+    const data = {
+      goal: formData.get('goal')?.toString() || '',
+      audience: formData.get('audience')?.toString() || '',
+      platforms: formData.get('platforms')?.toString() || '',
+      existingContent: formData.get('existingContent')?.toString() || '',
+      tone: formData.get('tone')?.toString() || '',
+      promotion: formData.get('promotion')?.toString() || '',
+      brandKit: formData.get('brandKit')?.toString() || '',
+      deadline: formData.get('deadline')?.toString() || '',
+      approval: formData.get('approval')?.toString() || '',
+      notes: formData.get('notes')?.toString() || '',
+      selectedPlan: selectedPlan || 'Not Selected',
+      createdAt: serverTimestamp(),
+    };
+
+    try {
+      await addDoc(collection(db, 'proposal_requests'), data);
+      setFormSubmitted(true);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'proposal_requests');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen font-sans bg-[#050505] text-zinc-300 flex flex-col">
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#050505]/80 backdrop-blur-md border-b border-zinc-900">
         <div className="w-full max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
           <button 
-            onClick={() => setCurrentView('intro')}
+            onClick={() => setCurrentView('portal')}
             className="text-lg font-bold tracking-tighter text-white"
           >
             FLUXIO<span className="text-zinc-500">LIVE</span>
@@ -207,17 +308,22 @@ export default function App() {
 
           {/* Desktop Nav */}
           <div className="hidden md:flex gap-10 items-center">
-            <NavLink mode="intro" label="Home" />
+            <NavLink mode="portal" label="Home" />
+            <NavLink mode="proposal" label="Proposal" />
+            
+            <div className="h-4 w-[1px] bg-zinc-800 mx-2"></div>
+            
             <NavLink mode="s2s" label="S2S" />
             <NavLink mode="mission" label="Mission Samvedna" />
             <NavLink mode="proof" label="Proof Stack" />
+
             <a 
               href="https://fluxio.live" 
               target="_blank" 
               rel="noopener noreferrer"
               className="px-4 py-1.5 bg-zinc-100 hover:bg-white text-black text-[9px] font-bold uppercase tracking-widest rounded transition-all"
             >
-              Visit Website
+              Main Site
             </a>
           </div>
 
@@ -240,7 +346,8 @@ export default function App() {
               className="md:hidden bg-zinc-950 border-b border-zinc-900 overflow-hidden"
             >
               <div className="flex flex-col gap-6 p-8 items-center text-center">
-                <NavLink mode="intro" label="Home" />
+                <NavLink mode="portal" label="Home" />
+                <NavLink mode="proposal" label="Partnership Proposal" />
                 <NavLink mode="s2s" label="S2S" />
                 <NavLink mode="mission" label="Mission Samvedna" />
                 <NavLink mode="proof" label="Proof Stack" />
@@ -260,87 +367,446 @@ export default function App() {
 
       <div className="flex-1 mt-16 overflow-x-hidden">
         <AnimatePresence mode="wait">
-          {currentView === 'intro' ? (
-            <motion.section
-              key="intro"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="w-full max-w-[1600px] mx-auto py-16 md:py-24 px-6 md:px-12"
+          {currentView === 'portal' ? (
+            <motion.div
+              key="portal"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="w-full"
             >
-              <div className="space-y-16">
-                <div>
-                  <span className="label-mini mb-4 block">Creative Studio Hub</span>
-                  <h1 className="text-4xl md:text-7xl font-bold tracking-tighter text-white leading-[0.9] uppercase">
-                    Fluxio Live <br className="hidden md:block" /> Student Program
+              {/* Portal Landing */}
+              <section className="w-full max-w-[1600px] mx-auto py-16 md:py-24 px-6 md:px-12">
+                <div className="mb-20">
+                  <span className="label-mini mb-4 block">Ecosystem Hub</span>
+                  <h1 className="text-5xl md:text-8xl font-bold tracking-tighter text-white leading-[0.9] uppercase">
+                    One Core <br className="hidden md:block" /> Two Dimensions.
                   </h1>
-                  <p className="mt-8 text-lg text-zinc-400 max-w-2xl leading-relaxed">
-                    Supporting student-built businesses through professional creative engineering and strategic deployment.
-                  </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-20 pt-16 border-t border-zinc-900">
-                  <div>
-                    <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-100 mb-6">About School2Startup</h2>
-                    <p className="text-zinc-500 leading-relaxed text-sm">
-                      School2Startup is a student entrepreneurship platform focused on practical learning. We conduct structured programs, challenges, and competitions where students build ideas, develop MVPs, and improve problem-solving and pitching skills. With 200+ active students, we aim to prepare them for real-world innovation.
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Student Program Card */}
+                  <button 
+                    onClick={() => setCurrentView('s2s')}
+                    className="group relative bg-zinc-950 border border-zinc-900 p-10 rounded-lg text-left hover:border-zinc-700 transition-all overflow-hidden"
+                  >
+                    <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <Target className="w-32 h-32" />
+                    </div>
+                    <span className="text-[10px] font-bold text-[#FF3E3E] uppercase tracking-widest mb-6 block">Dimension 01</span>
+                    <h2 className="text-4xl font-bold text-white tracking-tighter uppercase mb-4 group-hover:text-[#FF3E3E] transition-colors">Student <br /> Program</h2>
+                    <p className="text-zinc-500 text-sm max-w-xs leading-relaxed mb-10">
+                      Supporting student-built businesses through professional creative engineering and strategic deployment.
                     </p>
-                    <div className="mt-8 grid grid-cols-2 gap-4">
-                      <div className="bg-zinc-900/40 p-4 rounded border border-zinc-800">
-                        <span className="text-[10px] text-zinc-500 block uppercase mb-1">Students</span>
-                        <span className="text-xl font-bold text-white tracking-tighter">200+</span>
-                      </div>
-                      <div className="bg-zinc-900/40 p-4 rounded border border-zinc-800">
-                        <span className="text-[10px] text-zinc-500 block uppercase mb-1">Programs</span>
-                        <span className="text-xl font-bold text-white tracking-tighter">Active</span>
+                    <div className="flex items-center gap-2 text-white font-bold text-xs uppercase tracking-widest">
+                      Enter Hub <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
+                    </div>
+                  </button>
+
+                  {/* Partnership Proposal Card */}
+                  <button 
+                    onClick={() => setCurrentView('proposal')}
+                    className="group relative bg-zinc-950 border border-zinc-900 p-10 rounded-lg text-left hover:border-zinc-700 transition-all overflow-hidden"
+                  >
+                    <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <Music className="w-32 h-32" />
+                    </div>
+                    <span className="text-[10px] font-bold text-[#006241] uppercase tracking-widest mb-6 block">Dimension 02</span>
+                    <h2 className="text-4xl font-bold text-white tracking-tighter uppercase mb-4 group-hover:text-[#006241] transition-colors">Partnership <br /> Proposal</h2>
+                    <p className="text-zinc-500 text-sm max-w-xs leading-relaxed mb-10">
+                      A focused advertising partnership proposal built specifically for the School2Startup ecosystem.
+                    </p>
+                    <div className="flex items-center gap-2 text-white font-bold text-xs uppercase tracking-widest">
+                      View Proposal <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
+                    </div>
+                  </button>
+                </div>
+
+                {/* About Section (Original content preserved) */}
+                <div className="mt-32 pt-20 border-t border-zinc-900">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-20">
+                    <div>
+                      <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-100 mb-6 font-mono">Mission Statement</h2>
+                      <p className="text-zinc-400 leading-relaxed text-sm">
+                        School2Startup is a student entrepreneurship platform focused on practical learning. We conduct structured programs, challenges, and competitions where students build ideas, develop MVPs, and improve problem-solving and pitching skills. With 200+ active students, we aim to prepare them for real-world innovation.
+                      </p>
+                      <div className="mt-8 grid grid-cols-2 gap-4">
+                        <div className="bg-zinc-900/40 p-4 rounded border border-zinc-800">
+                          <span className="text-[10px] text-zinc-500 block uppercase mb-1">Students</span>
+                          <span className="text-xl font-bold text-white tracking-tighter">200+</span>
+                        </div>
+                        <div className="bg-zinc-900/40 p-4 rounded border border-zinc-800">
+                          <span className="text-[10px] text-zinc-500 block uppercase mb-1">Impact</span>
+                          <span className="text-xl font-bold text-white tracking-tighter">Growth</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-100 mb-6 font-mono">[01] Active Projects</h2>
-                    <div className="space-y-4">
-                      {Object.keys(projects).map((key) => (
-                        <button 
-                          key={key} 
-                          onClick={() => setCurrentView(key as ViewMode)}
-                          className="w-full flex items-center justify-between group p-4 border border-zinc-900 hover:border-zinc-700 bg-zinc-950/50 rounded transition-all"
-                        >
-                          <div className="text-left">
-                            <span className="text-white font-bold uppercase tracking-tight text-sm block">{(projects as any)[key].name}</span>
-                            <span className="text-[10px] text-zinc-600 uppercase tracking-widest">{(projects as any)[key].tagline}</span>
-                          </div>
-                          <ArrowRight className="h-4 w-4 text-zinc-700 group-hover:text-yellow-500 transition-colors" />
-                        </button>
-                      ))}
-                    </div>
-                    
-                    <div className="mt-12 pt-8 border-t border-zinc-900">
-                      <span className="label-mini mb-4 block">Ecosystem</span>
-                      <h3 className="text-sm font-bold uppercase text-zinc-300 mb-4 tracking-widest">Official Website</h3>
+                    <div>
+                      <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-100 mb-6 font-mono">Fluxio Live Official</h2>
+                      <p className="text-zinc-500 leading-relaxed text-sm mb-8">
+                        The creative engine behind the next generation of student-led brands. We engineer visibility for those building the future.
+                      </p>
                       <a 
                         href="https://fluxio.live" 
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-zinc-500 hover:text-white transition-colors group"
+                        className="inline-flex items-center gap-4 group"
                       >
-                        <span className="text-2xl font-bold tracking-tighter uppercase italic">fluxio.live</span>
-                        <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                        <span className="text-3xl font-bold tracking-tighter uppercase italic text-zinc-600 group-hover:text-white transition-colors">fluxio.live</span>
+                        <ArrowRight className="h-6 w-6 text-zinc-800 group-hover:text-yellow-500 transition-colors" />
                       </a>
                     </div>
                   </div>
                 </div>
-              </div>
-            </motion.section>
+              </section>
+            </motion.div>
+          ) : currentView === 'proposal' ? (
+            <motion.div
+              key="proposal"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="w-full bg-white text-black min-h-screen"
+            >
+              {/* Hero Section */}
+              <section className="bg-black text-white min-h-[80vh] flex flex-col justify-center items-center text-center px-4 md:px-6 relative overflow-hidden">
+                <div className="absolute top-10 left-6 right-6 flex justify-between z-10 w-full max-w-7xl mx-auto px-4">
+                  <span className="text-[10px] font-bold tracking-[0.2em] text-[#FF3E3E] uppercase">Fluxio Live</span>
+                  <span className="text-[10px] font-bold tracking-[0.2em] text-[#FF3E3E] uppercase">× School2Startup</span>
+                </div>
+                <div className="relative z-10">
+                  <h1 className="font-['Bebas_Neue'] text-7xl md:text-[10rem] leading-[0.85] mb-6 tracking-normal transition-transform duration-700 hover:scale-[1.01]">LET'S BUILD <br /> SOMETHING REAL</h1>
+                  <p className="font-['DM_Sans'] text-zinc-500 max-w-xl mx-auto italic text-sm md:text-base">A focused advertising partnership built for student entrepreneurs.</p>
+                </div>
+                <div className="absolute bottom-10 animate-bounce">
+                  <ArrowRight className="rotate-90 w-6 h-6 text-[#006241]" />
+                </div>
+              </section>
+
+              {/* About Partnership */}
+              <section className="py-20 md:py-24 px-4 md:px-6 bg-white text-black overflow-hidden">
+                <div className="max-w-7xl mx-auto border-y border-[#006241]/10 py-16 flex flex-col md:flex-row gap-12 md:gap-24 items-center">
+                  <div className="flex-1">
+                    <h2 className="text-2xl md:text-3xl font-bold leading-tight uppercase font-['Bebas_Neue'] tracking-tight">School2Startup is a student entrepreneurship platform focused on practical learning.</h2>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-base md:text-lg text-zinc-600 leading-relaxed border-l-4 border-[#FF3E3E] pl-8 tracking-widest">Fluxio Live brings professional creative engineering and strategic deployment to scale student-built businesses into recognized brands.</p>
+                  </div>
+                </div>
+              </section>
+
+              {/* The Campaign */}
+              <section className="bg-black text-white py-24 px-4 md:px-6">
+                <div className="max-w-7xl mx-auto">
+                  <span className="text-[#006241] font-bold tracking-widest text-[10px] uppercase mb-12 block font-mono">The Campaign Architecture</span>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-[1px] bg-zinc-900 border border-zinc-900">
+                    <div className="bg-black p-10 md:p-14 hover:bg-zinc-950 transition-colors group flex flex-col h-full">
+                      <h3 className="font-['Bebas_Neue'] text-white text-4xl mb-6 uppercase tracking-wider group-hover:text-[#FF3E3E] transition-colors">The Stranger</h3>
+                      <p className="text-zinc-500 text-sm leading-relaxed mt-auto">Cold audience ad. First impression, zero context. Designed to stop the scroll through visceral visual hooks.</p>
+                    </div>
+                    <div className="bg-black p-10 md:p-14 hover:bg-zinc-950 transition-colors group flex flex-col h-full border-y md:border-y-0 md:border-x border-zinc-900">
+                      <h3 className="font-['Bebas_Neue'] text-white text-4xl mb-6 uppercase tracking-wider group-hover:text-[#006241] transition-colors">The Curious One</h3>
+                      <p className="text-zinc-500 text-sm leading-relaxed mt-auto">Warm audience. They've seen you, but aren't convinced yet. Building trust through logical value propositions.</p>
+                    </div>
+                    <div className="bg-black p-10 md:p-14 hover:bg-zinc-950 transition-colors group flex flex-col h-full">
+                      <h3 className="font-['Bebas_Neue'] text-white text-4xl mb-6 uppercase tracking-wider group-hover:text-zinc-300 transition-colors">The Loyal Student</h3>
+                      <p className="text-zinc-500 text-sm leading-relaxed mt-auto">Existing students. Driving retention through community-focused storytelling and emotional referrals.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Form Section */}
+              <section className="bg-black text-white py-32 px-4 md:px-6">
+                <div className="max-w-2xl mx-auto">
+                  {formSubmitted ? (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="text-center py-20"
+                    >
+                      <div className="w-20 h-20 bg-[#FF3E3E] rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_50px_rgba(255,62,62,0.3)]">
+                        <ArrowRight className="w-8 h-8 text-white -rotate-45" />
+                      </div>
+                      <h2 className="font-['Bebas_Neue'] text-7xl mb-4 text-[#FF3E3E]">SUBMITTED.</h2>
+                      <p className="text-zinc-500 font-medium">Aditya will review your request and get in touch within 24 hours.</p>
+                      <button 
+                        onClick={() => setCurrentView('portal')}
+                        className="mt-12 text-xs uppercase tracking-[0.3em] font-bold text-zinc-600 hover:text-[#FF3E3E] transition-colors"
+                      >
+                        Return to Portal
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <div id="discovery-form" className="scroll-mt-20">
+                      <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+                        <div>
+                          <span className="text-[#006241] font-bold tracking-widest text-xs uppercase mb-4 block font-mono tracking-[0.3em]">Discovery Phase</span>
+                          <p className="text-zinc-300 text-3xl font-bold font-['Bebas_Neue'] tracking-tight">Initiate the Strategic Plan</p>
+                        </div>
+                        {selectedPlan && (
+                          <div className="bg-zinc-900/50 px-4 py-2 border border-zinc-800 rounded-sm flex items-center gap-3">
+                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Active Tier:</span>
+                            <span className={`text-[10px] font-bold uppercase tracking-widest ${selectedPlan === 'Starter' ? 'text-white' : selectedPlan === 'Growth' ? 'text-[#006241]' : 'text-[#C0272D]'}`}>
+                              {selectedPlan}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <form onSubmit={handleFormSubmit} className="space-y-16">
+                        <div className="grid grid-cols-1 gap-12">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-16">
+                            <div className="space-y-4 group">
+                              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest group-focus-within:text-[#006241] transition-colors">Q1. What is the main goal of this ad campaign? <span className="text-[#FF3E3E]">*</span></label>
+                              <select name="goal" required className="w-full bg-black border-b border-zinc-800 py-4 focus:outline-none focus:border-[#006241] transition-all text-xl appearance-none cursor-pointer">
+                                <option value="">Select...</option>
+                                <option>Get more students to enroll</option>
+                                <option>Build awareness about School2Startup</option>
+                                <option>Promote a specific event or competition</option>
+                                <option>All of the above</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-4 group">
+                              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest group-focus-within:text-[#006241] transition-colors">Q2. Who is the primary audience you want to reach? <span className="text-[#FF3E3E]">*</span></label>
+                              <select name="audience" required className="w-full bg-black border-b border-zinc-800 py-4 focus:outline-none focus:border-[#006241] transition-all text-xl appearance-none cursor-pointer">
+                                <option value="">Select...</option>
+                                <option>Students (Grades 8–12)</option>
+                                <option>Parents of school students</option>
+                                <option>Schools and institutions</option>
+                                <option>All three</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-4 group">
+                              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest group-focus-within:text-[#006241] transition-colors">Q3. Which platforms should the ads run on? <span className="text-[#FF3E3E]">*</span></label>
+                              <select name="platforms" required className="w-full bg-black border-b border-zinc-800 py-4 focus:outline-none focus:border-[#006241] transition-all text-xl appearance-none cursor-pointer">
+                                <option value="">Select...</option>
+                                <option>Instagram</option>
+                                <option>LinkedIn</option>
+                                <option>YouTube</option>
+                                <option>All platforms</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-4 group">
+                              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest group-focus-within:text-[#006241] transition-colors">Q4. Do you have any existing content or ads we can reference? <span className="text-[#FF3E3E]">*</span></label>
+                              <select name="existingContent" required className="w-full bg-black border-b border-zinc-800 py-4 focus:outline-none focus:border-[#006241] transition-all text-xl appearance-none cursor-pointer">
+                                <option value="">Select...</option>
+                                <option>Yes (share link or file)</option>
+                                <option>No start fresh</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-4 group">
+                              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest group-focus-within:text-[#006241] transition-colors">Q5. What tone should the ads feel like? <span className="text-[#FF3E3E]">*</span></label>
+                              <select name="tone" required className="w-full bg-black border-b border-zinc-800 py-4 focus:outline-none focus:border-[#006241] transition-all text-xl appearance-none cursor-pointer">
+                                <option value="">Select...</option>
+                                <option>Energetic and hype (FOMO-driven)</option>
+                                <option>Inspirational and emotional</option>
+                                <option>Professional and credibility-focused</option>
+                                <option>Fun and student-friendly</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-4 group text-left">
+                              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest group-focus-within:text-[#006241] transition-colors">Q6. Specific Program/Offer? <span className="text-[#FF3E3E]">*</span></label>
+                              <select name="promotion" required className="w-full bg-black border-b border-zinc-800 py-4 focus:outline-none focus:border-[#006241] transition-all text-xl appearance-none cursor-pointer">
+                                <option value="">Select...</option>
+                                <option>Yes (describe in 1–2 lines below)</option>
+                                <option>No general brand awareness</option>
+                              </select>
+                              <input name="promotionDetails" type="text" className="w-full bg-transparent border-b border-zinc-900 py-2 focus:outline-none focus:border-zinc-700 text-sm mt-2" placeholder="Brief description if yes..." />
+                            </div>
+
+                            <div className="space-y-4 group">
+                              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest group-focus-within:text-[#006241] transition-colors">Q7. Brand Kit <span className="text-[#FF3E3E]">*</span></label>
+                              <select name="brandKit" required className="w-full bg-black border-b border-zinc-800 py-4 focus:outline-none focus:border-[#006241] transition-all text-xl appearance-none cursor-pointer">
+                                <option value="">Select...</option>
+                                <option>Yes (share file or link)</option>
+                                <option>No Fluxio will use creative direction</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-4 group">
+                              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest group-focus-within:text-[#006241] transition-colors">Q8. Deadline <span className="text-[#FF3E3E]">*</span></label>
+                              <select name="deadline" required className="w-full bg-black border-b border-zinc-800 py-4 focus:outline-none focus:border-[#006241] transition-all text-xl appearance-none cursor-pointer">
+                                <option value="">Select...</option>
+                                <option>Within 48 hours</option>
+                                <option>This week</option>
+                                <option>Next week</option>
+                                <option>No fixed deadline</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-4 group">
+                              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest group-focus-within:text-[#006241] transition-colors">Q9. Approval <span className="text-[#FF3E3E]">*</span></label>
+                              <select name="approval" required className="w-full bg-black border-b border-zinc-800 py-4 focus:outline-none focus:border-[#006241] transition-all text-xl appearance-none cursor-pointer">
+                                <option value="">Select...</option>
+                                <option>I will approve personally</option>
+                                <option>My team will review</option>
+                                <option>No approval needed trust Fluxio</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-4 group">
+                              <label className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest group-focus-within:text-[#006241] transition-colors">Q10. Specific Notes</label>
+                              <textarea name="notes" rows={1} className="w-full bg-transparent border-b border-zinc-800 py-4 focus:outline-none focus:border-[#006241] transition-all text-lg resize-none" placeholder="Constraints or must-haves..."></textarea>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-8">
+                          <button 
+                            type="submit" 
+                            disabled={submitting}
+                            className="w-full bg-white hover:bg-[#FF3E3E] text-black hover:text-white py-8 font-['Bebas_Neue'] text-4xl transition-all uppercase tracking-widest disabled:opacity-50 shadow-2xl hover:translate-y-[-2px] active:translate-y-[1px]"
+                          >
+                            {submitting ? 'Deploying...' : 'Deploy Proposal Request →'}
+                          </button>
+                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest text-center leading-relaxed font-mono">
+                            Submissions are securely logged to the ecosystem database. <br />
+                            Aditya will receive an automated alert for review.
+                          </p>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Pricing Table Section */}
+              <section className="bg-black py-24 px-4 md:px-6">
+                <div className="max-w-7xl mx-auto">
+                  <div className="text-center mb-20 px-6">
+                    <span className="text-[#C0272D] text-[10px] font-bold tracking-[4px] uppercase mb-4 block">Partnership Plans</span>
+                    <h2 className="font-['Bebas_Neue'] text-5xl md:text-8xl text-white mb-6 tracking-tighter">Pick Your Pace</h2>
+                    <p className="font-['DM_Sans'] text-zinc-500 text-sm md:text-base max-w-xl mx-auto leading-relaxed italic">
+                      "Every plan includes original ad creative made specifically for School2Startup. No templates. No recycled content."
+                    </p>
+                  </div>
+
+                  <div className="md:hidden space-y-8 px-4">
+                    {[
+                      { name: "Starter", price: "₹999/week", color: "white", highlights: ["1 Video Ad", "1 Audience", "48hr Delivery"] },
+                      { name: "Growth", price: "₹2,199/week", color: "#006241", highlights: ["2 Video Ads", "3 Carousels", "2 Audiences", "48hr Delivery"] },
+                      { name: "Partner", price: "₹2,999/week", color: "#C0272D", highlights: ["4 Video Ads", "5 Carousels", "All Audiences", "24hr Delivery"] }
+                    ].map((plan) => (
+                      <div key={plan.name} className="bg-zinc-950 border border-zinc-900 p-8 rounded-sm relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-4">
+                          <span className="text-[10px] font-mono text-zinc-800">Tier::{plan.name.toUpperCase()}</span>
+                        </div>
+                        <h3 className="font-['Bebas_Neue'] text-4xl mb-2" style={{ color: plan.color }}>{plan.name}</h3>
+                        <div className="font-['Bebas_Neue'] text-2xl mb-6 text-white">{plan.price}</div>
+                        <ul className="space-y-3 mb-10">
+                          {plan.highlights.map((h, i) => (
+                            <li key={i} className="flex items-center gap-3 text-xs text-zinc-400 uppercase tracking-widest">
+                              <Check className="w-3 h-3" style={{ color: plan.color }} /> {h}
+                            </li>
+                          ))}
+                        </ul>
+                        <button 
+                          onClick={() => { setSelectedPlan(plan.name); document.querySelector('#discovery-form')?.scrollIntoView({ behavior: 'smooth' }); }}
+                          className={`w-full py-4 text-[10px] font-bold uppercase tracking-[0.3em] transition-all ${selectedPlan === plan.name ? 'bg-white text-black' : 'bg-zinc-900 text-white border border-zinc-800 hover:bg-white hover:text-black'}`}
+                        >
+                          {selectedPlan === plan.name ? 'Selected' : `Initiate ${plan.name} →`}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="hidden md:block w-full overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left border-collapse min-w-[800px]">
+                      <thead>
+                        <tr className="border-b border-zinc-900 font-['Bebas_Neue']">
+                          <th className="py-8 px-6 text-white text-xl uppercase tracking-wider">Feature</th>
+                          <th className="py-8 px-6 text-center text-white text-xl uppercase tracking-wider">Starter</th>
+                          <th className="py-8 px-6 text-center text-white text-xl uppercase tracking-wider">Growth</th>
+                          <th className="py-8 px-6 text-center text-white text-xl uppercase tracking-wider">Partner</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { label: "Price", starter: "₹999/week", growth: "₹2,199/week", partner: "₹2,999/week", type: 'price' },
+                          { label: "Video Ads", starter: "1", growth: "2", partner: "4" },
+                          { label: "Carousel Posts", starter: "", growth: "3", partner: "5" },
+                          { label: "Audiences Covered", starter: "1", growth: "2", partner: "All 3" },
+                          { label: "Delivery", starter: "48hr", growth: "48hr", partner: "24hr" },
+                          { label: "Revisions", starter: "", growth: "1 round", partner: "2 rounds" },
+                        ].map((row, idx) => (
+                          <tr key={idx} className="border-b border-zinc-900 hover:bg-zinc-950 transition-colors">
+                            <td className="py-6 px-6 text-zinc-400 font-medium text-xs md:text-sm uppercase tracking-tight">{row.label}</td>
+                            <td className="py-6 px-6 text-center text-white font-['DM_Sans'] font-medium">
+                              {renderValue(row.starter, row.type, 'white')}
+                            </td>
+                            <td className="py-6 px-6 text-center text-white font-['DM_Sans'] font-medium">
+                              {renderValue(row.growth, row.type, '#006241')}
+                            </td>
+                            <td className="py-6 px-6 text-center text-white font-['DM_Sans'] font-medium">
+                              {renderValue(row.partner, row.type, '#C0272D')}
+                            </td>
+                          </tr>
+                        ))}
+                        {/* Action Row */}
+                        <tr>
+                          <td className="py-12 px-6"></td>
+                          <td className="py-12 px-6 text-center">
+                            <button 
+                              onClick={() => { setSelectedPlan('Starter'); document.querySelector('#discovery-form')?.scrollIntoView({ behavior: 'smooth' }); }}
+                              className={`px-8 py-3 border border-zinc-800 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all ${selectedPlan === 'Starter' ? 'bg-white text-black' : ''}`}
+                            >
+                              {selectedPlan === 'Starter' ? 'Selected' : 'Start Here →'}
+                            </button>
+                          </td>
+                          <td className="py-12 px-6 text-center">
+                            <button 
+                              onClick={() => { setSelectedPlan('Growth'); document.querySelector('#discovery-form')?.scrollIntoView({ behavior: 'smooth' }); }}
+                              className={`px-8 py-3 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all ${selectedPlan === 'Growth' ? 'bg-white text-black' : 'bg-[#006241]'}`}
+                            >
+                              {selectedPlan === 'Growth' ? 'Selected' : 'Get Started →'}
+                            </button>
+                          </td>
+                          <td className="py-12 px-6 text-center">
+                            <button 
+                              onClick={() => { setSelectedPlan('Partner'); document.querySelector('#discovery-form')?.scrollIntoView({ behavior: 'smooth' }); }}
+                              className={`px-8 py-3 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all ${selectedPlan === 'Partner' ? 'bg-white text-black' : 'bg-[#C0272D]'}`}
+                            >
+                              {selectedPlan === 'Partner' ? 'Selected' : 'Go All In →'}
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-16 text-center px-4">
+                    <p className="font-['DM_Sans'] text-xs md:text-sm text-zinc-600 tracking-wider">
+                      All plans are weekly. Cancel or upgrade anytime. First delivery within 48 hours of confirmation.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* Proposal Footer */}
+              <section className="bg-black py-32 text-center px-6 border-t-2 border-[#FF3E3E]">
+                <h2 className="font-['Bebas_Neue'] text-8xl md:text-[10rem] leading-none mb-4 text-white hover:text-[#FF3E3E] transition-colors cursor-default">MAY 2026</h2>
+                <p className="font-bold text-xs mb-16 uppercase tracking-[0.4em] text-zinc-500">Fluxio Live x School2Startup Partnership Window</p>
+                <div className="flex justify-center">
+                  <button onClick={() => setCurrentView('portal')} className="px-16 py-6 border border-zinc-800 text-zinc-400 font-['Bebas_Neue'] text-2xl uppercase tracking-widest hover:bg-white hover:text-black transition-all">Portal Home</button>
+                </div>
+              </section>
+            </motion.div>
           ) : project && (
             <motion.section
               key="project"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="w-full max-w-[1600px] mx-auto py-12 md:py-24 px-6 md:px-12"
+              className="w-full max-w-[1600px] mx-auto py-12 md:py-24 px-6 md:px-12 min-h-[calc(100vh-64px)] flex flex-col justify-center"
             >
               {/* PC Layout: LEFT Video, RIGHT Brand Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-12 lg:gap-20 items-start">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-12 lg:gap-20 items-center">
                 
                 {/* LEFT COLUMN: 9:16 Player */}
                 <div className="lg:col-span-5 w-full md:sticky md:top-32 flex flex-col items-center">
@@ -540,6 +1006,8 @@ export default function App() {
             <p className="text-[10px] text-zinc-600 uppercase tracking-[0.3em]">Built for the School to Startup Student Program</p>
           </div>
           <div className="flex gap-10 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+            <button onClick={() => setCurrentView('portal')} className="hover:text-white transition-colors">Home</button>
+            <button onClick={() => setCurrentView('proposal')} className="hover:text-white transition-colors">Proposal</button>
             <a href="https://fluxio.live" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Main Site</a>
             <a href="mailto:adityashukla@fluxio.live" className="hover:text-white transition-colors">Contact Us</a>
           </div>

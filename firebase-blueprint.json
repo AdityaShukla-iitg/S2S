@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "ProposalRequest": {
+      "title": "Proposal Request",
+      "description": "Answers to the discovery questions for a new ad campaign.",
+      "type": "object",
+      "properties": {
+        "goal": {
+          "type": "string",
+          "description": "Main goal of the ad campaign"
+        },
+        "audience": {
+          "type": "string",
+          "description": "Primary audience"
+        },
+        "platforms": {
+          "type": "string",
+          "description": "Target platforms"
+        },
+        "existingContent": {
+          "type": "string",
+          "description": "Reference content or existing ads"
+        },
+        "tone": {
+          "type": "string",
+          "description": "Tone of the ads"
+        },
+        "promotion": {
+          "type": "string",
+          "description": "Specific program or offer being promoted"
+        },
+        "brandKit": {
+          "type": "string",
+          "description": "Brand kit availability"
+        },
+        "deadline": {
+          "type": "string",
+          "description": "First ad delivery deadline"
+        },
+        "approval": {
+          "type": "string",
+          "description": "Approval process"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": [
+        "goal",
+        "audience",
+        "platforms",
+        "existingContent",
+        "tone",
+        "brandKit",
+        "deadline",
+        "approval",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/proposal_requests/{requestId}": {
+      "schema": "ProposalRequest",
+      "description": "Collection of proposal requests from potential partners."
+    }
+  }
+}

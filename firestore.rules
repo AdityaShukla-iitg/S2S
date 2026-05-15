@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isServerTimestamp(field) {
+      return field == request.time;
+    }
+
+    function isValidProposalRequest(data) {
+      let requiredFields = [
+        'goal', 'audience', 'platforms', 'existingContent', 
+        'tone', 'brandKit', 'deadline', 'approval', 'createdAt'
+      ];
+      return data.keys().hasAll(requiredFields)
+        && data.keys().size() <= 11 // requiredFields + optional notes
+        && data.goal is string && data.goal.size() <= 500
+        && data.audience is string && data.audience.size() <= 500
+        && data.platforms is string && data.platforms.size() <= 500
+        && data.existingContent is string && data.existingContent.size() <= 500
+        && data.tone is string && data.tone.size() <= 500
+        && (data.get('promotion', '') is string && data.get('promotion', '').size() <= 1000)
+        && data.brandKit is string && data.brandKit.size() <= 500
+        && data.deadline is string && data.deadline.size() <= 500
+        && data.approval is string && data.approval.size() <= 500
+        && (data.get('notes', '') is string && data.get('notes', '').size() <= 2000)
+        && isServerTimestamp(data.createdAt);
+    }
+
+    match /proposal_requests/{requestId} {
+      allow create: if isValidId(requestId) && isValidProposalRequest(incoming());
+      // No reading or modifying for the public
+      allow read, update, delete: if false;
+    }
+  }
+}
