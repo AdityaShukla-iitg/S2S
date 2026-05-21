@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { ReelVideoPlayer } from './components/ReelVideoPlayer';
 import { 
   Download, 
   Play, 
@@ -21,7 +22,7 @@ import {
 } from 'lucide-react';
 
 // Form data is sent directly to Gmail via mailto: links as requested.
-type ViewMode = 'portal' | 's2s' | 'mission' | 'proof' | 'proposal';
+type ViewMode = 'portal' | 's2s' | 'mission' | 'proof' | 'proposal' | 'campaign';
 
 function AnalysisCard({ title, why, insight }: { title: string; why: string; insight: string; key?: React.Key }) {
   return (
@@ -47,6 +48,153 @@ export default function App() {
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  
+  // Campaign Tracker States
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [campaignTab, setCampaignTab] = useState<'Poster' | 'Reel'>('Poster');
+  const [retryIndices, setRetryIndices] = useState<Record<number, number>>({});
+
+  const googleDrivePosterIds: Record<number, string> = {
+    2: '1u3qw8zc9Zs3UX8VsX0U8u2QwqtgkFAHz', // 23 May
+    3: '13E8E_OX_PEIf-U4g0K9b0iFo6T_QGC39', // 24 May
+    4: '13LGb_sZA3RiaYoHnAVkzY9rLtoPMlIiX', // 25 May
+    5: '1equ9Hw2L7X_7fSZ__w0VjrnZpvHxZqUI', // 26 May
+    6: '1X-8Y9n3mRivpLeRAf0NEntb6g1QojxA5', // 27 May
+    7: '1JfoS58X_XNaoZlm7VbdZeOVEE7_kU6rY', // 28 May
+    8: '1cbXuQ8jC7-ph-V2qUBDpqvvtab2KZhI0', // 29 May
+    9: '1wczDqdIaGmDCpYLl-lcN20cOGs_6jZDK', // 30 May
+    10: '1uG0bjsfTC0ZNV5G3aAyZWA02nggf7Nye', // 31 May
+    11: '1pdD3Xel2teZY0Zm5JlCKL1iYxQ7YHzkN', // 1 June
+    12: '1Ro9enCGnzweDTFXrHVff2PhLqRUBLkxn', // 2 June
+    13: '1CdoyvRhwVf1_k-LoS4vaisE4KLtac6vP', // 3 June
+    14: '1qLqo6O6luGnfz4PTl9di3iPsE00MYsgg', // 4 June
+    15: '1wbeGyMXQTRpLOEHFRliL5cJWWb8gQyB3', // 5 June
+    16: '16y2jcEwfDqFeHqKnTgISXjCZweynN1H5', // 6 June
+  };
+
+  const googleDriveReelIds: Record<number, string> = {
+    1: '1xF8W_1_xNtEq87m3uGr_mp4Hepfw9Lvk', // 22 May
+    4: '1u7H8W0p9gT9X1hN0KPZtywhh-WHG_us3', // 25 May
+    6: '1lgLzW9ITeGBAsgWxqJr5u7tIZDp6mPUn', // 27 May
+    8: '1eiZia90UVhhQDEXkTOaP5PsHpWi9442l', // 29 May
+    10: '1HjJqxiZoQrp54RQ6eMsaGHdZ4tfmyeM1', // 31 May
+    12: '13o_ZEKmn-NQDgytHRukJ6YErXr9onRdk', // 2 June
+  };
+
+  const getCandidatePosterSrcs = (index: number) => {
+    const list: string[] = [];
+    
+    // Google Drive direct image URLs
+    const driveId = googleDrivePosterIds[index];
+    if (driveId) {
+      list.push(`https://drive.google.com/thumbnail?sz=w1200&id=${driveId}`);
+      list.push(`https://lh3.googleusercontent.com/d/${driveId}`);
+      list.push(`https://drive.google.com/uc?id=${driveId}&export=download`);
+      list.push(`https://drive.google.com/uc?export=download&id=${driveId}`);
+    }
+
+    const baseNames: Record<number, string> = {
+      1: 'may22', 2: 'may23', 3: 'may24', 4: 'may25', 5: 'may26', 6: 'may27',
+      7: 'may28', 8: 'may29', 9: 'may30', 10: 'may31',
+      11: 'june1', 12: 'june2', 13: 'june3', 14: 'june4', 15: 'june5', 16: 'june6', 17: 'june7'
+    };
+    const name = baseNames[index];
+    if (name) {
+      const extensions = ['.png', '.jpg', '.jpeg', '.webp', '.PNG', '.JPG', '.JPEG', '.WEBP'];
+      const variations = [
+        name,
+        name.charAt(0).toUpperCase() + name.slice(1),
+        name.replace(/(\d+)/, '_$1'),
+        name.replace(/(\d+)/, '-$1'),
+        name.charAt(0).toUpperCase() + name.slice(1).replace(/(\d+)/, '_$1'),
+        name.charAt(0).toUpperCase() + name.slice(1).replace(/(\d+)/, '-$1')
+      ];
+      
+      variations.forEach(v => {
+        extensions.forEach(ext => {
+          list.push(`/${v}${ext}`);
+        });
+      });
+    }
+    
+    const fallbackUnsplashMap: Record<number, string> = {
+      1: "https://images.unsplash.com/photo-1515187029135-18ee286d815b?auto=format&fit=crop&w=800&q=80",
+      2: "https://images.unsplash.com/photo-1529699211952-734e80c4d42b?auto=format&fit=crop&w=800&q=80",
+      3: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=80",
+      4: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=800&q=80",
+      5: "https://images.unsplash.com/photo-1431540015161-0bf868a2d407?auto=format&fit=crop&w=800&q=80",
+      6: "https://images.unsplash.com/photo-1531403009284-440f080d1e12?auto=format&fit=crop&w=800&q=80",
+      7: "https://images.unsplash.com/photo-1580541832626-2a7131ee809f?auto=format&fit=crop&w=800&q=80",
+      8: "https://images.unsplash.com/photo-1578269174936-2709b5a19aea?auto=format&fit=crop&w=800&q=80",
+      9: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80",
+      10: "https://images.unsplash.com/photo-1484480974693-2ca0a72f3a25?auto=format&fit=crop&w=800&q=80",
+      11: "https://images.unsplash.com/photo-1484755560693-a4074577af3a?auto=format&fit=crop&w=800&q=80",
+      12: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80",
+      13: "https://images.unsplash.com/photo-1501504905252-473c47e087f8?auto=format&fit=crop&w=800&q=80",
+      14: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80",
+      15: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80",
+      16: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=800&q=80",
+      17: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80"
+    };
+    
+    if (fallbackUnsplashMap[index]) {
+      list.push(fallbackUnsplashMap[index]);
+    }
+    
+    return list;
+  };
+
+  const getCandidateReelSrcs = (index: number) => {
+    const list: string[] = [];
+    
+    // Google Drive direct image/video URLs
+    const driveId = googleDriveReelIds[index];
+    if (driveId) {
+      list.push(`https://drive.google.com/uc?export=download&id=${driveId}`);
+      list.push(`https://docs.google.com/uc?export=download&id=${driveId}`);
+      list.push(`https://drive.google.com/uc?id=${driveId}&export=download`);
+      list.push(`https://lh3.googleusercontent.com/d/${driveId}`);
+    }
+
+    const baseNames: Record<number, string> = {
+      1: 'may22', 2: 'may23', 3: 'may24', 4: 'may25', 5: 'may26', 6: 'may27',
+      7: 'may28', 8: 'may29', 9: 'may30', 10: 'may31',
+      11: 'june1', 12: 'june2', 13: 'june3', 14: 'june4', 15: 'june5', 16: 'june6', 17: 'june7'
+    };
+    const name = baseNames[index];
+    if (name) {
+      const extensions = ['.mp4', '.mov', '.png', '.jpg', '.jpeg', '.webp', '.MP4', '.MOV', '.PNG', '.JPG', '.JPEG', '.WEBP'];
+      const variations = [
+        name,
+        name.charAt(0).toUpperCase() + name.slice(1),
+        name.replace(/(\d+)/, '_$1'),
+        name.replace(/(\d+)/, '-$1'),
+        name.charAt(0).toUpperCase() + name.slice(1).replace(/(\d+)/, '_$1'),
+        name.charAt(0).toUpperCase() + name.slice(1).replace(/(\d+)/, '-$1')
+      ];
+      
+      variations.forEach(v => {
+        extensions.forEach(ext => {
+          list.push(`/${v}${ext}`);
+        });
+      });
+    }
+
+    const fallbackVids: Record<number, string> = {
+      1: "https://assets.mixkit.co/videos/preview/mixkit-code-on-a-computer-screen-focused-43482-large.mp4",
+      4: "https://assets.mixkit.co/videos/preview/mixkit-hand-working-on-a-computer-close-up-1655-large.mp4",
+      6: "https://assets.mixkit.co/videos/preview/mixkit-man-typing-on-a-keyboard-of-a-laptop-44853-large.mp4",
+      8: "https://assets.mixkit.co/videos/preview/mixkit-hands-of-a-man-typing-on-a-keyboard-of-a-laptop-44855-large.mp4",
+      10: "https://assets.mixkit.co/videos/preview/mixkit-computer-keys-closeup-with-a-blue-light-43202-large.mp4",
+      12: "https://assets.mixkit.co/videos/preview/mixkit-close-up-of-hands-typing-on-a-keyboard-and-mouse-42750-large.mp4",
+    };
+    
+    if (fallbackVids[index]) {
+      list.push(fallbackVids[index]);
+    }
+    
+    return list;
+  };
 
   const renderValue = (val: any, type?: string, color?: string) => {
     if (val === true) return <span className="text-[#006241] font-bold text-xl">✦</span>;
@@ -70,6 +218,1678 @@ export default function App() {
       days: "PHASE 03: DAYS 8 to 10",
       title: "Conversion",
       description: "Share short clips of student founders' pain points, post a limited cohort spots story to trigger FOMO, and end with a stark, bold link-in-bio push to capture sign-ups."
+    }
+  ];
+
+  const campaignPosts: Array<{
+    index: number;
+    day: string;
+    date: string;
+    type: "Poster" | "Reel" | "Both";
+    title: string;
+    goal: string;
+    dimension: string;
+    whyChosen: string;
+    caption: string;
+    reelCaption?: string;
+  }> = [
+    {
+      index: 1,
+      day: "Day 01",
+      date: "Friday, May 22, 2026",
+      type: "Reel" as const,
+      title: "The National Call to Active Bench",
+      goal: "Announce nationwide opening on Unstop",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Announces the national-level innovation challenge and urges young founders/creators across India to begin their transition from theory to real impact.",
+      caption: `The wait is over.
+
+You know this feeling.
+
+The late nights.
+The rough notebook sketches.
+The half-finished diagrams.
+The frustration of trying to solve a problem nobody else around you seems to notice.
+
+You sit there staring at your notes, wondering:
+
+“Does this idea actually matter?”
+
+Yes.
+
+And now it finally has a stage.
+
+School2Startup National Innovation Challenge 2026 is officially LIVE.
+
+This is not about already having a billion-dollar startup figured out.
+
+It is about:
+• spotting a real problem
+• thinking differently
+• building something meaningful
+• and having the courage to put your idea out into the world
+
+Maybe you are:
+• writing algorithms late at night
+• designing wireframes on Figma
+• brainstorming startup ideas in class
+• building an AI tool
+• researching a problem nobody is talking about
+• sketching product ideas on blank sheets of paper
+
+Whatever your process looks like, this platform was built for students like you.
+
+━━━━━━━━━━━━━━━
+
+📍 THE DETAILS
+
+• Register on Unstop before June 7
+• Solo Participation
+• Online & Pan India
+• No Entry Fee
+• No Team Required
+
+━━━━━━━━━━━━━━━
+
+🏆 WHAT’S WAITING
+
+• Share of ₹10,000 prize pool
+• Certificates
+• Expert Mentorship
+• National Recognition
+
+━━━━━━━━━━━━━━━
+
+The path is open.
+
+The registrations are live.
+
+The only thing left is your move.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 2,
+      day: "Day 02",
+      date: "Saturday, May 23, 2026",
+      type: "Poster" as const,
+      title: "Are You Just Theoretical? (The Shift to Prototype)",
+      goal: "Stir existential urgency among student builders",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Tackles academic passivity by comparing empty grades with functional prototypes. Encourages students to enter with whatever format they have.",
+      caption: `15 DAYS LEFT.
+
+Think ahead. Build before the others move.
+
+Most students keep waiting for the “right time” to start building.
+
+The right time is now.
+
+School2Startup National Innovation Challenge 2026 is officially live, and registrations are open.
+
+If you have:
+• an idea sitting in your head
+• a problem you constantly think about
+• a solution you want to turn into something real
+
+— this is your stage.
+
+This is not a quiz competition.
+This is not a marks-based college project.
+
+This is a national-level innovation challenge where you pitch a real startup idea, AI concept, social impact initiative, or any innovation you truly believe in.
+
+Your idea will be evaluated by judges who actually care about what you are building.
+
+🚀 Journey Timeline:
+
+• Register on Unstop before June 7
+• Submit your idea as a Pitch Deck / PPT / PDF / Prototype
+• Evaluation Round: June 18 – 25
+• Grand Finale: June 28
+
+🏆 What’s at stake?
+
+• Prize pool worth ₹10,000
+• Certificates
+• Expert mentorship
+• National recognition
+
+Solo. Online. Pan India.
+
+15 days left.
+
+The others are already thinking.
+
+Are you moving?
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 3,
+      day: "Day 03",
+      date: "Sunday, May 24, 2026",
+      type: "Poster" as const,
+      title: "Unstop Registration: Seamless Onboarding Blueprint",
+      goal: "Clear friction for team and solo registrations",
+      dimension: "1:1 Square Grid (1080x1080)",
+      whyChosen: "Solves immediate operational questions- how to register. Maximizes registration sign-up conversions on Unstop.",
+      caption: `9:45 PM.
+
+Your idea deserves a stage. Not just a notebook.
+
+There is a moment almost every young builder experiences.
+
+You are sitting in class.
+The lecture is going on.
+Everyone else is writing notes.
+
+But your mind is somewhere else entirely.
+
+You are thinking about a problem nobody around you is solving.
+
+Maybe it is an app.
+Maybe it is an AI idea.
+Maybe it is a startup concept.
+Maybe it is something that could genuinely change people’s lives.
+
+You start sketching it quietly in the last pages of your notebook.
+
+A product.
+A feature.
+A system.
+A company you want to build someday.
+
+And then the bell rings.
+
+You close the notebook.
+
+The idea stays inside.
+
+That is the gap School2Startup exists to close.
+
+School2Startup National Innovation Challenge 2026 is a national-level platform built for students who are done just consuming and ready to start creating.
+
+You do not need a finished product.
+You do not need a co-founder.
+You do not need to come from a big city or a big college.
+
+You just need an idea worth fighting for.
+
+Bring it as:
+• a Pitch Deck
+• PPT
+• PDF
+• Prototype
+• Presentation
+
+Your submission will be evaluated by a panel of judges on:
+• Innovation
+• Creativity
+• Execution Potential
+• Real-World Impact
+
+The best ideas move to the Grand Finale on June 28, where you pitch in front of the ecosystem.
+
+🏆 Winners receive:
+• Share of ₹10,000 prize pool
+• Certificates
+• Expert Mentorship
+• National Recognition
+
+Some ideas stay trapped in notebooks.
+
+Some become the future.
+
+Which one is yours going to be?
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+Solo. Online. Pan India.
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 4,
+      day: "Day 04",
+      date: "Monday, May 25, 2026",
+      type: "Both" as const,
+      title: "The Innovator's Dilemma: Perfect vs. Fast",
+      goal: "Demolish early paralysis and fear of failure",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Students worry their ideas aren't 'finished'. This video reassures them that PPTs, early prototypes, and raw decks are highly encouraged.",
+      caption: `Most students consume.
+
+Few build.
+
+Which one are you?
+
+Every day, thousands of students scroll through startup stories, watch founder interviews, save reels about teenagers building companies, and quietly think:
+
+“I could do that someday.”
+
+But someday never comes.
+
+Not because they lack ideas.
+Not because they are not intelligent enough.
+
+Because nobody ever gave them a real reason to start today.
+
+Here is your reason.
+
+School2Startup National Innovation Challenge 2026 is not another webinar you attend, screenshot, and forget the next morning.
+
+This is a national-level innovation challenge where you actually build something.
+
+You take the idea sitting in your head and turn it into:
+• a startup concept
+• an AI solution
+• a social impact initiative
+• a prototype
+• a pitch deck
+• something real
+
+You submit it.
+
+Your work gets evaluated by real judges.
+
+You compete with some of the sharpest young minds across India.
+
+And if your idea stands out, you reach the Grand Finale on June 28 and pitch it on a national stage.
+
+The next big thing will not be built by someone waiting to “feel ready.”
+
+It will be built by the person who started while everyone else was still watching.
+
+🏆 What winners get:
+• Share of ₹10,000 prize pool
+• Certificates
+• Expert Mentorship
+• National Recognition
+
+Solo. Online. Pan India.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`,
+      reelCaption: `Build something real.
+
+Anyone can have an idea.
+
+It takes a builder to turn that idea into impact.
+
+Look closely at the notebook in the video:
+
+IDEA ➜ IMPACT
+
+That small arrow in the middle?
+
+That is the hardest part of the entire journey.
+
+Because that is where most people stop.
+
+They imagine the AI model.
+They sketch the hardware concept.
+They think about the app interface.
+They dream about the startup they could build someday.
+
+But they never actually build it.
+
+The idea stays trapped:
+• inside notebooks
+• on sticky notes
+• in unfinished Figma drafts
+• in random late-night conversations
+• inside their head
+
+And eventually, it fades.
+
+School2Startup National Innovation Challenge 2026 exists for one reason:
+
+To help students make the jump from idea to execution.
+
+This platform is not looking for perfect companies or polished founders.
+
+It is built for the raw transition between:
+• curiosity and action
+• imagination and structure
+• potential and execution
+
+Whether your idea involves:
+• Artificial Intelligence
+• Hardware
+• Software
+• Research
+• Social Impact
+• or a simple solution to a real-world problem
+
+This is your chance to finally build it.
+
+━━━━━━━━━━━━━━━
+
+📍 THE DETAILS
+
+• Register on Unstop before June 7
+• Solo Participation
+• Online & Pan India
+
+📂 Submission Formats:
+• Pitch Deck
+• PDF
+• Prototype
+• Presentation
+
+━━━━━━━━━━━━━━━
+
+🏆 WHAT’S WAITING
+
+• Share of ₹10,000 prize pool
+• Certificates of Achievement
+• Expert Mentorship
+• National Recognition
+
+━━━━━━━━━━━━━━━
+
+Stop leaving your ideas trapped on sticky notes.
+
+Build something real.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 5,
+      day: "Day 05",
+      date: "Tuesday, May 26, 2026",
+      type: "Poster" as const,
+      title: "The Submission Grid: What Can You Submit?",
+      goal: "Broaden the definition of innovation to spike application volume",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Specifies acceptable formats clearly to widen the pool: PPTs, PDFs, pitch decks, early prototypes, AI concepts, and social business ideas.",
+      caption: `9:49 PM
+Ideas deserve recognition. Here is what you are actually competing for.
+
+Let me be honest with you for a second.
+
+Most student competitions give you a participation certificate and a LinkedIn post you forget about in a week.
+
+School2Startup National Innovation Challenge 2026 is built differently.
+
+Here is what is actually on the table:
+
+Rs 10,000 prize pool for the best ideas in the country.
+
+Not a voucher.
+Not "goodies."
+Real money. For real thinking.
+
+Certificates of Achievement from one of India's biggest student innovation platforms, powered by Unstop.
+
+Something you can actually put on your resume, your LinkedIn, your college application, your investor deck someday.
+
+Expert mentorship from people who have built, funded, and scaled real things.
+
+Not generic advice.
+Conversations that can change the direction of what you are building.
+
+National recognition as one of the top young innovators in India.
+
+Your name. Your idea. On a national stage.
+
+And the only thing standing between you and all of this is an idea you probably already have.
+
+Submit it as a pitch deck, PPT, PDF, prototype, or presentation.
+
+Get evaluated June 18 to 25.
+Compete at the Grand Finale on June 28.
+
+Future founders build here.
+
+Register before June 7: https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+Solo. Online. Pan India.
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #fluxiolive #school2startup`
+    },
+    {
+      index: 6,
+      day: "Day 06",
+      date: "Wednesday, May 27, 2026",
+      type: "Both" as const,
+      title: "Ecosystem Collab: Fluxio Live in Action",
+      goal: "Highlight Fluxio's design-led engineering tools",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Injects credibility. Shows S2S and Fluxio working together to accelerate student ideas from proof of concept to proof of market.",
+      caption: `10 days left.
+
+Every move today defines your tomorrow.
+
+Chess players do not wait to see what the opponent does.
+
+They think three moves ahead.
+They prepare before the pressure hits.
+They move while others are still deciding.
+
+The students who win at School2Startup National Innovation Challenge 2026 will not be the ones registering on June 6 at 11:59 PM in panic.
+
+They will be the ones who started thinking today.
+
+Because here is the truth about innovation that nobody tells you in school:
+
+The idea is rarely the hard part.
+
+The hard part is believing your idea deserves to exist.
+
+The hard part is opening the laptop.
+Writing the first slide.
+Building the first prototype.
+Turning random thoughts into something structured and real.
+
+The hard part is choosing to become a player instead of staying a spectator.
+
+And 10 days is enough time to make that move.
+
+You can register today.
+You can spend the next few days shaping your idea into:
+• a Pitch Deck
+• a PDF
+• a Prototype
+• a Presentation
+• an AI Concept
+• a Startup Solution
+
+Then on June 18, your idea enters evaluation.
+
+And on June 28, during the Grand Finale, you could be the one standing on that stage.
+
+Not because you were the smartest in the room.
+
+Because you moved before everyone else did.
+
+Every problem holds a pattern waiting to be solved.
+
+What pattern have you noticed that nobody else is paying attention to yet?
+
+🏆 Prize Pool: ₹10,000
+🎓 Certificates
+🚀 Expert Mentorship
+🌍 National Recognition
+
+Solo. Online. Pan India.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`,
+      reelCaption: `Mark the dates.
+
+A calendar is just a collection of numbers until a deadline gives those numbers meaning.
+
+June 2026 is not just another month.
+
+It is the timeline where your idea either:
+• stays trapped in your head
+• or becomes something real
+
+Look closely at the board in the video.
+
+The roadmap is already there.
+The dates are fixed.
+The path is clear.
+
+Every successful founder eventually learns the same lesson:
+
+Ideas alone change nothing.
+
+Execution does.
+
+That is why structure matters.
+
+Without deadlines, most ideas stay as:
+• unfinished notebook sketches
+• late-night thoughts
+• startup concepts discussed but never tested
+• “someday” plans that never leave the page
+
+School2Startup National Innovation Challenge 2026 is designed to break that cycle.
+
+Because the formula is simple:
+
+IDEA + ACTION = IMPACT
+
+But the “action” part is where most students freeze.
+
+This challenge is your push past that point.
+
+BUILD.
+SHIP.
+PITCH.
+
+━━━━━━━━━━━━━━━
+
+📍 YOUR ROADMAP
+
+• June 7 → Registration Deadline
+• June 18 – 25 → Evaluation Round
+• June 28 → Grand Finale
+
+━━━━━━━━━━━━━━━
+
+🏆 WHAT’S ON THE LINE
+
+• Share of ₹10,000 prize pool
+• Certificates of Achievement
+• Expert Mentorship
+• National Recognition
+
+━━━━━━━━━━━━━━━
+
+Solo. Online. Pan India.
+
+The countdown has already started.
+
+The next move is yours.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 7,
+      day: "Day 07",
+      date: "Thursday, May 28, 2026",
+      type: "Poster" as const,
+      title: "Revealed: The Evaluation Playbook",
+      goal: "Build trust and define benchmarks for participants",
+      dimension: "1:1 Square (1080x1080)",
+      whyChosen: "Details the official judging parameters (Innovation, Feasibility, Execution, Impact) so students can optimize their decks pre-submission.",
+      caption: `The path is clear.
+
+The only question is whether you are on it.
+
+I know what stops most students from entering competitions like this.
+
+It is not laziness.
+
+It is confusion.
+
+“What do I even submit?”
+“Is my idea good enough?”
+“How does this whole thing work?”
+
+So let’s simplify everything.
+
+No jargon.
+No complicated process.
+No fluff.
+
+Here is exactly how School2Startup National Innovation Challenge 2026 works:
+
+━━━━━━━━━━━━━━━
+
+STEP 1 • REGISTER
+
+Register on Unstop before June 7.
+
+That’s it.
+
+No registration fee.
+No team required.
+Solo participation.
+Pan India.
+Online.
+
+━━━━━━━━━━━━━━━
+
+STEP 2 • SUBMIT YOUR IDEA
+
+Your submission can be:
+• a Startup Concept
+• an AI Solution
+• a Social Impact Initiative
+• a Research Project
+• an App Idea
+• any innovation solving a real problem
+
+Submission formats:
+• PPT
+• PDF
+• Pitch Deck
+• Prototype
+• Presentation
+
+You do NOT need a finished product.
+
+You need a strong idea with clear thinking behind it.
+
+━━━━━━━━━━━━━━━
+
+STEP 3 • EVALUATION ROUND
+June 18 to June 25
+
+A panel of judges evaluates submissions based on:
+• Innovation
+• Creativity
+• Execution Potential
+• Feasibility
+• Real-World Impact
+• Presentation Quality
+
+━━━━━━━━━━━━━━━
+
+STEP 4 • GRAND FINALE
+June 28
+
+Top ideas get shortlisted.
+
+Selected participants pitch their ideas in front of evaluators and the wider ecosystem.
+
+🏆 Winners receive:
+• Share of ₹10,000 prize pool
+• Certificates
+• Expert Mentorship
+• National Recognition
+
+━━━━━━━━━━━━━━━
+
+Four steps.
+
+One idea.
+
+A national stage.
+
+The path is already clear.
+
+The only thing left is your move.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 8,
+      day: "Day 08",
+      date: "Friday, May 29, 2026",
+      type: "Both" as const,
+      title: "Mission Samvedna: Innovation with Conscience",
+      goal: "Channel social purpose and highlight compassionate code projects",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Demonstrates that innovation isn't just about SaaS. Tackles real-world humanitarian challenges like clothing redistribution and localized relief models.",
+      caption: `The stage is set. Are you?
+Picture this.
+June 28, 2026.
+A room full of evaluators, innovators, and people who have built real companies from scratch.
+A spotlight hits the stage.
+A microphone stands at the center.
+And one student walks up, takes a breath, and pitches an idea that they built from nothing but a problem they refused to stop thinking about.
+That student could be you.
+But only if you decide today.
+Here is what I have noticed about the young people who actually make it to stages like this.
+They are not always the smartest people in the room.
+They are not always from the best schools.
+They do not always have the most polished decks.
+What they have is this: they took the first step when everyone else was still thinking about it.
+School2Startup National Innovation Challenge 2026 is a national-level platform powered by Unstop where students from across India bring their boldest ideas and compete for real recognition.
+The pitch deck you build for this.
+The problem statement you write.
+The solution you shape into something presentable.
+That process alone will teach you more about building than a semester of theory ever could.
+And if your idea makes it to the Grand Finale on June 28?
+That spotlight is yours.
+The stage is already set.
+The microphone is already there.
+The only thing missing is you.
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+Solo. Online. Pan India.
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #fluxiolive #school2startup`,
+      reelCaption: `Close your eyes for a second.
+
+Now think about the noise.
+
+Every single day, you scroll past:
+• startup success stories
+• teenage founders raising funding
+• AI tools launching overnight
+• people claiming they built “the next big thing”
+
+Meanwhile, your own head is already crowded with ideas:
+wireframes, startup concepts, dashboards, pitch decks, late-night thoughts about problems nobody else seems to notice.
+
+It becomes overwhelming.
+
+And that is exactly why most students never start.
+
+Not because they are incapable.
+
+Because the noise makes building feel bigger and more complicated than it actually is.
+
+People see:
+• the money
+• the jargon
+• the scale
+• the pressure
+
+And they freeze before they even begin.
+
+But look closely at the video.
+
+The blindfold is not about being unable to see.
+
+It is about choosing what NOT to look at.
+
+Because building something meaningful is not about chasing every trend or grabbing every flying piece of paper at once.
+
+It is about:
+• blocking out distraction
+• focusing on one real problem
+• committing to one clear solution
+• and building with intention
+
+That is the story behind every founder who creates something that actually lasts.
+
+School2Startup National Innovation Challenge 2026 is where you remove the blindfold and finally give your idea structure.
+
+And the ₹10,000 prize pool?
+
+It is not just money.
+
+It is validation.
+
+Proof that your thinking, your problem-solving, and your execution have value in the real world.
+
+━━━━━━━━━━━━━━━
+
+📍 THE DETAILS
+
+• Registration Deadline: June 7
+• Evaluation Round: June 18 to 25
+• Grand Finale: June 28
+
+━━━━━━━━━━━━━━━
+
+🏆 WHAT’S ON THE LINE
+
+• Share of ₹10,000 prize pool
+• Certificates of Achievement
+• Expert Mentorship
+• National Recognition
+
+━━━━━━━━━━━━━━━
+
+Solo. Online. Pan India.
+
+The noise will always exist.
+
+The choice to build through it is yours.
+
+Block out the distraction.
+
+Build something real.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 9,
+      day: "Day 09",
+      date: "Saturday, May 30, 2026",
+      type: "Poster" as const,
+      title: "Halfway Point: Registrations Reaching Capacity",
+      goal: "Drive high urgency/scarcity",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Triggers FOMO as the registrations stack up on Unstop. Shows moving metrics to push remaining undecided students to register.",
+      caption: `The journey starts now.
+
+From an idea in your head to a national stage.
+
+Every founder has a Day Zero.
+
+A moment where the idea stops being “something interesting to think about” and becomes something they decide to pursue seriously.
+
+For many people, that moment never arrives.
+
+Not because the idea lacked potential.
+
+Because they never had a structure that pushed them to act on it.
+
+That is exactly why School2Startup National Innovation Challenge 2026 exists.
+
+It gives students a real platform to stop consuming innovation and start building it.
+
+Here is what the journey actually looks like:
+
+📍 TODAY
+Registrations are live on Unstop.
+
+• Free Registration
+• Solo Participation
+• No Team Required
+• Pan India
+• Takes less than 2 minutes to enter
+
+📍 JUNE 7
+Registrations close.
+
+This is the final entry deadline.
+
+📍 JUNE 18 to 25 • EVALUATION ROUND
+
+Participants submit their ideas in the form of:
+• Pitch Deck
+• PPT
+• PDF
+• Prototype
+• Presentation
+
+Ideas are evaluated on:
+• Innovation
+• Creativity
+• Execution Potential
+• Real-World Impact
+• Feasibility
+• Presentation Quality
+
+📍 JUNE 28 • GRAND FINALE
+
+The strongest ideas get shortlisted and pitch in front of evaluators and the wider ecosystem.
+
+🏆 Winners receive:
+• Share of ₹10,000 prize pool
+• Certificates
+• Expert Mentorship
+• National Recognition
+
+That is the entire journey.
+
+Register.
+Build.
+Submit.
+Pitch on a national stage.
+
+And it all starts with one decision you make today.
+
+Not next week.
+Not after exams.
+Not when you “feel more ready.”
+
+Now.
+
+Because the students standing on that stage on June 28 will not be waiting for permission.
+
+They are already building.
+
+Are you in?
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 10,
+      day: "Day 10",
+      date: "Sunday, May 31, 2026",
+      type: "Both" as const,
+      title: "Ready to Submit? PPTs, PDFs, & Pitch Deck Spec-sheet",
+      goal: "Reassure students on structural simplicity",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Acts as a visual spec card mapping the minimal submission deck outline (Problem, Solution, Market, Team). Reassures nervous builders.",
+      caption: `What would you build if someone actually gave you a stage?
+
+Not a school assignment.
+Not a project made just for grades.
+
+A real stage.
+
+Real judges.
+Real feedback.
+Real recognition.
+
+Think about this honestly.
+
+You have already spent time on your phone today.
+
+You watched reels.
+Scrolled through startup stories.
+Saw posts about founders building companies at 17 or 19.
+Maybe even read headlines about students raising funding for ideas they started from their hostel rooms.
+
+And somewhere in the back of your mind, there is probably an idea you keep returning to.
+
+An idea that refuses to leave you alone.
+
+Maybe it is:
+• an AI tool solving a problem you personally face every day
+• an app your school or college desperately needs
+• a research project you never knew where to take
+• a social impact initiative for a problem in your city or community
+• a startup concept you have been quietly thinking about for months
+
+That is exactly the kind of idea School2Startup National Innovation Challenge 2026 is looking for.
+
+Not a perfect company.
+
+Not a funded startup.
+
+Not a polished product with investors already behind it.
+
+Just:
+• a real problem
+• a real solution
+• and the courage to put your idea in front of people who can recognize its potential
+
+📍 Here’s how the journey works:
+
+• Registrations are live now on Unstop
+• Registration Deadline: June 7
+• Evaluation Round: June 18 to 25
+• Grand Finale: June 28
+
+📂 Submission Formats:
+• Pitch Deck
+• PPT
+• PDF
+• Prototype
+• Presentation
+
+🏆 What you can win:
+• Share of ₹10,000 prize pool
+• Certificates
+• Expert Mentorship
+• National Recognition
+
+Solo. Online. Pan India.
+
+Now here is the real question:
+
+What would YOU build if someone finally gave you a stage?
+
+Drop your idea in the comments.
+
+Seriously.
+
+Say it out loud.
+
+That is the first step builders take.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`,
+      reelCaption: `There is a moment when an idea stops being just a thought and finally gets a face.
+
+You see the flash of the camera.
+The backdrop.
+The confident stance.
+The founder standing beside their work like it was always meant to exist.
+
+But what you do not see is everything that came before that frame.
+
+The messy notebooks.
+The failed prototypes.
+The unfinished drafts.
+The nights spent wondering if the idea even mattered.
+The moments they almost convinced themselves to stop building and “just focus on exams instead.”
+
+Look closely at the founders in the video.
+
+Smart Drones.
+AI Solutions.
+Creative Tech.
+
+None of them started with a polished company or a perfect roadmap.
+
+They started exactly where you are right now:
+
+Staring at a screen.
+Questioning their idea.
+Wondering whether it was actually worth pursuing.
+
+The difference?
+
+They chose to build anyway.
+
+They chose to put their name next to their work.
+
+And at the end of the video, the screen fades to black with one simple line:
+
+NEXT COULD BE YOU.
+
+That is not just a tagline.
+
+It is an open seat waiting for the next student who decides to step forward.
+
+School2Startup National Innovation Challenge 2026 is officially looking for the next wave of young innovators.
+
+The platform is built.
+The judges are ready.
+The stage is set.
+
+Now the only missing thing is the person willing to step into the frame.
+
+If you were standing there right now…
+
+What would be written on your whiteboard?
+
+━━━━━━━━━━━━━━━
+
+📍 THE DETAILS
+
+• Registration Deadline: June 7
+• Evaluation Round: June 18 to 25
+• Grand Finale: June 28
+
+━━━━━━━━━━━━━━━
+
+🏆 WHAT’S ON THE LINE
+
+• Share of ₹10,000 prize pool
+• Certificates of Achievement
+• Expert Mentorship
+• National Recognition
+
+━━━━━━━━━━━━━━━
+
+Solo. Online. Pan India.
+
+Step into the frame.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 11,
+      day: "Day 11",
+      date: "Monday, June 01, 2026",
+      type: "Poster" as const,
+      title: "The Mentors Hub: Meet Your National Judges",
+      goal: "Elevate perceived value and prestige of the finale",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Builds high aspiration. Knowing they will pitch to prominent Indian founders and investors motivates top-tier builders to finalize details.",
+      caption: `One week left.
+
+Here is everything you need to know before June 7.
+
+I have been posting about School2Startup National Innovation Challenge 2026 for the past few days.
+
+Today, let’s make it simple.
+
+No long story.
+No complicated explanation.
+
+Just clarity.
+
+Because sometimes clarity is all someone needs to finally start.
+
+━━━━━━━━━━━━━━━
+
+📍 OPEN REGISTRATIONS
+LIVE NOW
+
+Go to Unstop.
+Register.
+You are in.
+
+• Free Registration
+• Solo Participation
+• Pan India
+• Online
+• Takes less than 2 minutes
+
+━━━━━━━━━━━━━━━
+
+📍 REGISTRATION DEADLINE
+JUNE 7
+
+After June 7, registrations close.
+
+No late entries.
+No extensions.
+
+━━━━━━━━━━━━━━━
+
+📍 EVALUATION ROUND
+JUNE 18 to 25
+
+Submit your idea in any of these formats:
+• Pitch Deck
+• PPT
+• PDF
+• Prototype
+• Presentation
+
+A panel of judges evaluates submissions based on:
+• Innovation
+• Creativity
+• Execution Potential
+• Feasibility
+• Real-World Impact
+• Presentation Quality
+
+━━━━━━━━━━━━━━━
+
+📍 GRAND FINALE
+JUNE 28
+
+Top ideas get shortlisted and pitch in front of the ecosystem.
+
+🏆 Winners receive:
+• Share of ₹10,000 prize pool
+• Certificates
+• Expert Mentorship
+• National Recognition
+
+━━━━━━━━━━━━━━━
+
+That’s the entire journey.
+
+Register.
+Build your idea.
+Submit it.
+Pitch on a national stage.
+
+The journey starts here.
+
+Not when you “feel ready.”
+Not after your schedule clears up.
+Not someday.
+
+Here.
+
+One week left to get in.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+Solo. Online. Pan India.
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 12,
+      day: "Day 12",
+      date: "Tuesday, June 02, 2026",
+      type: "Both" as const,
+      title: "Beyond Classrooms: Real Startup Execution",
+      goal: "Highlight School2Startup's central driving mission",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Inspiring manifesto-style poster that appeals to the inner rebel builder. Direct link to national progress and youth empowerment.",
+      caption: `5 days left.
+
+The builders are already in.
+
+Are you?
+
+Look at that poster carefully.
+
+One student is holding a drone.
+One has a notebook filled with startup ideas.
+One carries a camera.
+One has a laptop open with a pitch deck on screen.
+
+Different tools.
+Different skill sets.
+Different backgrounds.
+
+But they all share one thing:
+
+They chose to build instead of just watching others do it.
+
+That is exactly what School2Startup National Innovation Challenge 2026 is about.
+
+This challenge is not built for one “type” of student.
+
+It is built for:
+• the tech student prototyping an AI tool late at night
+• the creative who sees problems differently from everyone else
+• the strategist filling notebooks with startup ideas at 1 AM
+• the researcher sitting on an idea that could genuinely change something
+• the student who knows a problem exists and refuses to ignore it anymore
+
+If you have a real idea, there is a place for it here.
+
+You do not need funding.
+You do not need a perfect product.
+You do not need a team.
+
+You just need the courage to put your idea forward.
+
+🏆 What’s waiting:
+• ₹10,000 Prize Pool
+• Certificates
+• Expert Mentorship
+• National Recognition
+
+📍 Grand Finale: June 28
+
+And now the clock is ticking.
+
+Only 5 days left to register.
+
+After June 7, registrations close.
+
+The students competing beside you are already:
+• refining their pitch
+• improving their presentation
+• shaping their problem statement
+• preparing their prototype
+
+They are already moving.
+
+The only question is whether you are going to step in or let another opportunity pass by.
+
+Pitch your idea.
+
+Build something real.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+Solo. Online. Pan India.
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`,
+      reelCaption: `The hallway walk.
+
+You walk through the same school corridors every single day.
+
+Same walls.
+Same classrooms.
+Same routines.
+Same conversations echoing through the hallway.
+
+But the real question is:
+
+What is happening inside your head while you walk through them?
+
+Are you just moving from one class to another?
+
+Or are you carrying an idea that could actually change something?
+
+Look closely at the words flashing through the video:
+
+IDEA.
+RISK.
+FAIL.
+BUILD.
+WIN.
+
+That is the real roadmap of every founder.
+
+Not success first.
+
+First comes the idea.
+Then the risk of believing in it.
+Then the fear of failure.
+Then the decision to keep building anyway.
+
+And eventually?
+
+You win.
+
+Not because the journey was easy.
+
+Because you chose to step forward while everyone else stayed comfortable.
+
+That piece of paper falling through the hallway is not just a flyer.
+
+It is an invitation.
+
+An invitation to stop blending into the crowd and finally put your idea into motion.
+
+School2Startup National Innovation Challenge 2026 is officially calling for builders.
+
+━━━━━━━━━━━━━━━
+
+📍 THE TIMELINE
+
+• Registration Deadline: June 7
+• Evaluation Round: June 18 to 25
+• Grand Finale: June 28
+
+━━━━━━━━━━━━━━━
+
+🏆 WHAT’S ON THE LINE
+
+• Share of ₹10,000 prize pool
+• Certificates
+• Expert Mentorship
+• National Recognition
+
+━━━━━━━━━━━━━━━
+
+Solo. Online. Pan India.
+
+Opportunities do not wait forever.
+
+Catch this one before it hits the ground.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 13,
+      day: "Day 13",
+      date: "Wednesday, June 03, 2026",
+      type: "Poster" as const,
+      title: "The Grand Finale Glimpse (June 28 Blueprint)",
+      goal: "Tease the final showdown to activate submission energy",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Builds excitement around the physical/virtual grand finale on June 28, where shortlists face actual investors in a high-octane pitch.",
+      caption: `4 days left.
+
+Ideas do not wait.
+
+Neither should you.
+
+Let me tell you something most people learn too late about ideas.
+
+They have an expiry date.
+
+Not because the idea suddenly becomes bad.
+
+Because the longer you sit on it without acting, the easier it becomes to convince yourself it was never worth building in the first place.
+
+You start doubting it.
+
+You compare it to companies that already exist.
+You tell yourself some smart person could build it better.
+You convince yourself you need:
+• more time
+• more skills
+• more confidence
+• more certainty
+
+And then one day, you open your phone and see someone else building exactly what you once imagined.
+
+And the only thing left to say is:
+
+“I had that idea too.”
+
+But ideas do not change anything on their own.
+
+Builders do.
+
+That is why School2Startup National Innovation Challenge 2026 exists.
+
+To give students and young innovators across India a reason to finally act on the thing they keep thinking about.
+
+🏆 What you are competing for:
+• Share of ₹10,000 prize pool
+• Certificates of Achievement
+• Expert Mentorship
+• National Recognition
+
+💡 What you need:
+Just one real idea.
+
+It could be:
+• a Startup Concept
+• an AI Solution
+• a Research Project
+• an App Idea
+• a Social Impact Initiative
+
+Submit it as:
+• Pitch Deck
+• PPT
+• PDF
+• Prototype
+• Presentation
+
+📍 Registration Deadline: June 7
+📍 Final Pitch Day: June 28
+
+Only 4 days left.
+
+And honestly?
+
+The empty chair in that poster says everything.
+
+It is waiting for the person who finally decides their idea is worth something.
+
+Is that person you?
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+Solo. Online. Pan India.
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 14,
+      day: "Day 14",
+      date: "Thursday, June 04, 2026",
+      type: "Poster" as const,
+      title: "Final 48 Hours: Unstop Portal Alert",
+      goal: "Incite critical urgency and push the late-stage registrants",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "A countdown visual designed to capture procrastinators. Highly effective for final registration spikes on Unstop.",
+      caption: `3 days left.
+
+The train is moving.
+
+Are you on it?
+
+Look at that poster carefully.
+
+There is a train with one word written on the front:
+
+OPPORTUNITY.
+
+And someone is running behind it with pitch decks flying out of their hands, trying to catch it before it disappears.
+
+Do not become that person.
+
+Right now, you still have time to walk onto this train calmly.
+
+Find your seat.
+Prepare your idea.
+Be ready when it reaches the destination.
+
+But only if you move before June 7.
+
+Because here is the truth about opportunities like this:
+
+They rarely announce themselves twice.
+
+School2Startup National Innovation Challenge 2026 is one of those rare platforms where a school student or young innovator can take an idea living quietly inside their head and finally put it in front of people who can:
+• evaluate it
+• validate it
+• challenge it
+• recognize its potential
+
+You do not need:
+• connections
+• a famous college
+• investors
+• a finished product
+
+You only need:
+• a real problem
+• a real solution
+• and the courage to show up
+
+💡 Submit your idea as:
+• Pitch Deck
+• PPT
+• PDF
+• Prototype
+• Presentation
+
+📍 Registration Deadline: June 7
+📍 Evaluation Round: June 18 to 25
+📍 Grand Finale: June 28
+
+🏆 What’s waiting:
+• Share of ₹10,000 prize pool
+• Certificates
+• Expert Mentorship
+• National Recognition
+
+Only 3 days left.
+
+Some opportunities never circle back.
+
+This might be one of them.
+
+Do not stand at the station watching this train leave without you.
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+Solo. Online. Pan India.
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 15,
+      day: "Day 15",
+      date: "Friday, June 05, 2026",
+      type: "Poster" as const,
+      title: "Final 24 Hours Countdown: Move or Regret",
+      goal: "Generate maximum FOMO and immediate registrations",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Direct ultimatum call. The final registration pushes before the system closes down registration pipelines completely.",
+      caption: `2 days left.
+
+The builders are already moving.
+
+Are you?
+
+Look at that image from above.
+
+Four students.
+One table.
+Zero excuses.
+
+One is locked into a laptop building something.
+One is sketching startup ideas by hand.
+One is designing wireframes on a tablet.
+One is shaping a pitch deck slide by slide.
+
+Sticky notes everywhere.
+Notebooks open.
+A chess piece sitting in the center of the table.
+Coffee going cold because nobody even remembers to drink it.
+
+This is what the final days before a real opportunity look like for people who actually intend to show up on June 28.
+
+Not panic.
+
+Not procrastination.
+
+Focused.
+Deliberate.
+Building.
+
+And here is what most people do not realize about those students:
+
+They did not wait until the last minute to start caring.
+
+They registered early.
+They gave themselves time to think deeply.
+Time to refine their idea.
+Time to turn rough thoughts into something real.
+
+Now they are in the final shaping phase.
+
+You still have 2 days to join them.
+
+That is enough time to:
+• register
+• define your problem statement
+• structure your solution
+• create a simple pitch deck or PDF
+• and submit something you genuinely believe in
+
+It is not too late today.
+
+But it will be after June 7.
+
+School2Startup National Innovation Challenge 2026 closes registrations in just 2 days.
+
+After that, even the best idea in the world cannot enter.
+
+And while some people keep thinking about starting, the builders are already moving.
+
+🏆 What’s waiting:
+• Share of ₹10,000 prize pool
+• Certificates
+• Expert Mentorship
+• National Recognition
+
+📍 Grand Finale: June 28
+
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+
+Solo. Online. Pan India.
+
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #FluxioLive #School2Startup`
+    },
+    {
+      index: 16,
+      day: "Day 16",
+      date: "Saturday, June 06, 2026",
+      type: "Poster" as const,
+      title: "Registrations Close Tonight: The Innovation Journey Begins",
+      goal: "Seal the registration gates and transition to compilation",
+      dimension: "4:5 Portrait Grid (1080x1350)",
+      whyChosen: "Final hours warning. Once tonight's clock hit 11:59 PM, Unstop seals the database, initiating the submission round.",
+      caption: `24 hours left. Make it count.
+This is the last post before registrations close.
+Look at this poster one more time.
+A person sitting completely still. Calm. Composed. But instead of a face, a camera lens staring straight at the world.
+Seeing everything differently.
+Framing problems nobody else is framing.
+Finding patterns in places others walk past.
+That is what School2Startup National Innovation Challenge 2026 is really looking for.
+Not the most polished pitch.
+Not the most expensive prototype.
+Not the student from the most famous school.
+The most creative mind.
+The sharpest problem solver.
+The one who sees what others miss.
+Your mind is the puzzle.
+Creativity is the key.
+You have exactly 24 hours to register.
+After June 7, the door closes permanently.
+The evaluation round runs June 18 to 25.
+The Grand Finale is June 28.
+The prize pool is Rs 10,000.
+And beyond the money, there are certificates, expert mentorship, and national recognition waiting for the ideas that make it through.
+This is the last time I am going to say this.
+If you have been sitting on an idea.
+If you have been telling yourself you will register tomorrow.
+If you have been waiting to feel more ready.
+Tomorrow is today.
+This is the moment.
+24 hours. That is all you have left.
+Make it count.
+Register before June 7:
+https://unstop.com/p/school2startup-national-innovation-challenge-school2startup-1684197?lb=j5KSaRdj&utm_medium=Share&utm_source=competitions&utm_campaign=Aryansin52812
+Solo. Online. Pan India.
+#School2Startup #NationalInnovationChallenge #S2S2026 #StudentFounders #YoungInnovators #BuildInIndia #StartupIndia #Unstop #fluxiolive #school2startup`
     }
   ];
 
@@ -206,7 +2026,7 @@ export default function App() {
     }
   };
 
-  const project = !['portal', 'proposal'].includes(currentView) ? projects[currentView as keyof typeof projects] : null;
+  const project = !['portal', 'proposal', 'campaign'].includes(currentView) ? projects[currentView as keyof typeof projects] : null;
 
   const NavLink = ({ mode, label }: { mode: ViewMode, label: string }) => (
     <button
@@ -221,6 +2041,82 @@ export default function App() {
       {label}
     </button>
   );
+
+  const downloadAssetSpec = (post: typeof campaignPosts[0]) => {
+    const specText = `FLUXIO LIVE × SCHOOL2STARTUP
+DIMENSION 03: CAMPAIGN 1 ASSET SPECIFICATION
+===================================================
+Day/Post ID:   ${post.day}
+Target Date:   ${post.date}
+Format Type:   ${post.type.toUpperCase()}
+Content Theme: ${post.title}
+
+[STRATEGIC OBJECTIVE]
+- Goal: ${post.goal}
+- Why Chosen: ${post.whyChosen}
+
+[DESIGN & TECHNICAL LAYOUT]
+- Native Dimension: ${post.dimension}
+- Visual Direction: Industrial tech minimalism / High-contrast precision style
+
+[READY-TO-COPY CAPTION(S)]
+${post.reelCaption ? `--- POSTER CAPTION ---
+${post.caption}
+
+--- REEL CAPTION ---
+${post.reelCaption}` : post.caption}
+
+===================================================
+Created by Fluxio Live Ecosystem Server Protocol.`;
+
+    const blob = new Blob([specText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `FLX_DIM3_CAMP1_${post.day.replace(/\s+/g, '_').toUpperCase()}_Spec.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyCaption = (caption: string, index: number) => {
+    navigator.clipboard.writeText(caption.replace(/\\n/g, '\n'));
+    setCopiedIndex(index);
+    setTimeout(() => {
+      setCopiedIndex(null);
+    }, 2000);
+  };
+
+  const handleDownloadImage = async (src: string, filename: string, index: number) => {
+    const driveId = googleDrivePosterIds[index] || googleDriveReelIds[index];
+    if (driveId) {
+      const directUrl = `https://drive.google.com/uc?export=download&id=${driveId}`;
+      const link = document.createElement('a');
+      link.href = directUrl;
+      link.download = filename;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    try {
+      const response = await fetch(src);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      window.open(src, '_blank');
+    }
+  };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -293,9 +2189,9 @@ Submitted via Fluxio Live Portal
   };
 
   return (
-    <div className="min-h-screen font-sans bg-[#050505] text-zinc-300 flex flex-col">
+    <div className="min-h-screen font-sans bg-[#040c08] text-zinc-300 flex flex-col">
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#050505]/80 backdrop-blur-md border-b border-zinc-900">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#040c08]/80 backdrop-blur-md border-b border-zinc-900/80">
         <div className="w-full max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
           <button 
             onClick={() => setCurrentView('portal')}
@@ -308,6 +2204,7 @@ Submitted via Fluxio Live Portal
           <div className="hidden md:flex gap-10 items-center">
             <NavLink mode="portal" label="Home" />
             <NavLink mode="proposal" label="Proposal" />
+            <NavLink mode="campaign" label="Campaign Live" />
             
             <div className="h-4 w-[1px] bg-zinc-800 mx-2"></div>
             
@@ -346,6 +2243,7 @@ Submitted via Fluxio Live Portal
               <div className="flex flex-col gap-6 p-8 items-center text-center">
                 <NavLink mode="portal" label="Home" />
                 <NavLink mode="proposal" label="Partnership Proposal" />
+                <NavLink mode="campaign" label="Campaign 1 Plan" />
                 <NavLink mode="s2s" label="S2S" />
                 <NavLink mode="mission" label="Mission Samvedna" />
                 <NavLink mode="proof" label="Proof Stack" />
@@ -378,25 +2276,25 @@ Submitted via Fluxio Live Portal
                 <div className="mb-20">
                   <span className="label-mini mb-4 block">Ecosystem Hub</span>
                   <h1 className="text-5xl md:text-8xl font-bold tracking-tighter text-white leading-[0.9] uppercase">
-                    One Core <br className="hidden md:block" /> Two Dimensions.
+                    One Core <br className="hidden md:block" /> Three Dimensions.
                   </h1>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   {/* Student Program Card */}
                   <button 
                     onClick={() => setCurrentView('s2s')}
-                    className="group relative bg-zinc-950 border border-zinc-900 p-10 rounded-lg text-left hover:border-zinc-700 transition-all overflow-hidden"
+                    className="group relative bg-zinc-950 border border-zinc-900 p-8 rounded-lg text-left hover:border-zinc-700 transition-all overflow-hidden"
                   >
                     <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <Target className="w-32 h-32" />
+                      <Target className="w-24 h-24 text-[#FF3E3E]" />
                     </div>
                     <span className="text-[10px] font-bold text-[#FF3E3E] uppercase tracking-widest mb-6 block">Dimension 01</span>
                     <h2 className="text-4xl font-bold text-white tracking-tighter uppercase mb-4 group-hover:text-[#FF3E3E] transition-colors">Student <br /> Program</h2>
-                    <p className="text-zinc-500 text-sm max-w-xs leading-relaxed mb-10">
+                    <p className="text-zinc-500 text-sm leading-relaxed mb-10 max-w-xs">
                       Supporting student-built businesses through professional creative engineering and strategic deployment.
                     </p>
-                    <div className="flex items-center gap-2 text-white font-bold text-xs uppercase tracking-widest">
+                    <div className="flex items-center gap-2 text-white font-bold text-xs uppercase tracking-widest mt-auto">
                       Enter Hub <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
                     </div>
                   </button>
@@ -404,18 +2302,36 @@ Submitted via Fluxio Live Portal
                   {/* Partnership Proposal Card */}
                   <button 
                     onClick={() => setCurrentView('proposal')}
-                    className="group relative bg-zinc-950 border border-zinc-900 p-10 rounded-lg text-left hover:border-zinc-700 transition-all overflow-hidden"
+                    className="group relative bg-zinc-950 border border-zinc-900 p-8 rounded-lg text-left hover:border-zinc-700 transition-all overflow-hidden"
                   >
                     <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <Music className="w-32 h-32" />
+                      <Music className="w-24 h-24 text-[#006241]" />
                     </div>
                     <span className="text-[10px] font-bold text-[#006241] uppercase tracking-widest mb-6 block">Dimension 02</span>
                     <h2 className="text-4xl font-bold text-white tracking-tighter uppercase mb-4 group-hover:text-[#006241] transition-colors">Partnership <br /> Proposal</h2>
-                    <p className="text-zinc-500 text-sm max-w-xs leading-relaxed mb-10">
+                    <p className="text-zinc-500 text-sm leading-relaxed mb-10 max-w-xs">
                       A focused advertising partnership proposal built specifically for the School2Startup ecosystem.
                     </p>
-                    <div className="flex items-center gap-2 text-white font-bold text-xs uppercase tracking-widest">
+                    <div className="flex items-center gap-2 text-white font-bold text-xs uppercase tracking-widest mt-auto">
                       View Proposal <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
+                    </div>
+                  </button>
+
+                  {/* Dimension 03 Card - Campaign 1 Plan */}
+                  <button 
+                    onClick={() => setCurrentView('campaign')}
+                    className="group relative bg-zinc-950 border border-zinc-900 p-8 rounded-lg text-left hover:border-zinc-700 transition-all overflow-hidden border-orange-950/40"
+                  >
+                    <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <TrendingUp className="w-24 h-24 text-orange-500" />
+                    </div>
+                    <span className="text-[10px] font-bold text-orange-500 uppercase tracking-widest mb-6 block">Dimension 03</span>
+                    <h2 className="text-4xl font-bold text-white tracking-tighter uppercase mb-4 group-hover:text-orange-500 transition-colors">Campaign 1 <br /> Plan</h2>
+                    <p className="text-zinc-500 text-sm leading-relaxed mb-10 max-w-xs">
+                      An integrated content publishing roadmap containing dates, poster/reel structures, and ready captions.
+                    </p>
+                    <div className="flex items-center gap-2 text-white font-bold text-xs uppercase tracking-widest mt-auto">
+                      Track Campaign <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
                     </div>
                   </button>
                 </div>
@@ -451,7 +2367,7 @@ Submitted via Fluxio Live Portal
                         className="inline-flex items-center gap-4 group"
                       >
                         <span className="text-3xl font-bold tracking-tighter uppercase italic text-zinc-600 group-hover:text-white transition-colors">fluxio.live</span>
-                        <ArrowRight className="h-6 w-6 text-zinc-800 group-hover:text-yellow-500 transition-colors" />
+                        <ArrowRight className="h-6 w-6 text-zinc-800 group-hover:text-[#e5a93b] transition-colors" />
                       </a>
                     </div>
                   </div>
@@ -796,6 +2712,562 @@ Submitted via Fluxio Live Portal
                 </div>
               </section>
             </motion.div>
+          ) : currentView === 'campaign' ? (
+            <motion.div
+              key="campaign"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="w-full bg-black text-white min-h-screen"
+            >
+              {/* Campaign Header / Hero */}
+              <section className="w-full max-w-[1600px] mx-auto py-16 md:py-24 px-6 md:px-12 min-h-[50vh] flex flex-col justify-center snap-start space-y-16">
+                
+                {/* 1. Hero / Header with Important Dates */}
+                <div className="border-b border-zinc-900 pb-12">
+                  <div className="flex items-center gap-3 mb-6">
+                    <span className="text-[10px] bg-[#e5a93b]/10 text-[#e5a93b] font-bold uppercase tracking-widest px-3 py-1 border border-[#e5a93b]/15 rounded-full font-mono">
+                      Dimension 03 Live
+                    </span>
+                    <span className="text-[10px] text-zinc-600 font-mono">
+                      CHALLENGE-CAMP1-2026-V1
+                    </span>
+                  </div>
+                  
+                  <h1 className="text-4xl md:text-7xl font-black font-sans tracking-tighter text-white leading-tight uppercase mb-6">
+                    CAMPAIGN 1: NATIONAL CHALLENGE LAUNCH
+                  </h1>
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    <div className="lg:col-span-7">
+                      <p className="text-zinc-400 text-sm md:text-base leading-relaxed uppercase tracking-wide">
+                        A multi-channel digital launch roadmap designed specifically to power up nationwide awareness and maximize Unstop registration volumes for the School2Startup National Innovation Challenge. This campaign focuses on inspiring youth builders, solo developers, and teams to showcase their practical prototypes and startup frameworks rather than presenting academic, dry paper assessments.
+                      </p>
+                    </div>
+                    
+                    <div className="lg:col-span-5 bg-zinc-950 border border-zinc-900 p-6 rounded-lg space-y-4">
+                      <div className="border-b border-zinc-900 pb-2">
+                        <span className="text-[10px] font-mono text-[#e5a93b] uppercase font-black tracking-widest">
+                          IMPORTANT DATES
+                        </span>
+                      </div>
+                      <div className="space-y-3 font-mono text-[11px] uppercase text-zinc-350">
+                        <div className="flex justify-between border-b border-zinc-900 pb-2">
+                          <span className="text-zinc-500">Launch & Open Portal</span>
+                          <span className="text-white font-bold">May 22, 2026</span>
+                        </div>
+                        <div className="flex justify-between border-b border-zinc-900 pb-2">
+                          <span className="text-zinc-500">Registrations Closes</span>
+                          <span className="text-[#e5a93b] font-bold">June 06, 2026 (11:59 PM)</span>
+                        </div>
+                        <div className="flex justify-between border-b border-zinc-900 pb-2">
+                          <span className="text-zinc-500">Evaluation Phase</span>
+                          <span className="text-white font-bold">June 18 – 25, 2026</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-zinc-500">Grand Finale Battle</span>
+                          <span className="text-white font-bold">June 28, 2026</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Planner Table Row */}
+                <div id="planner-matrix-table" className="space-y-6">
+                  <div>
+                    <h2 className="text-xl font-bold tracking-tight text-white uppercase font-sans">
+                      Date Planner Matrix
+                    </h2>
+                    <p className="text-zinc-500 text-[10px] uppercase font-mono mt-1">
+                      Tabular index of posts, schedule windows, and creative content channels
+                    </p>
+                  </div>
+
+                  <div className="overflow-x-auto bg-zinc-950 border border-zinc-900 rounded-lg">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-zinc-900 text-[10px] font-mono text-zinc-500 uppercase tracking-widest bg-zinc-950">
+                          <th className="py-4 px-6 font-bold">No.</th>
+                          <th className="py-4 px-6 font-bold">Scheduled Date</th>
+                          <th className="py-4 px-6 font-bold">Format to Post</th>
+                          <th className="py-4 px-6 font-bold">Status</th>
+                          <th className="py-4 px-6 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-900/50 text-[11px] font-mono text-zinc-350">
+                        {campaignPosts.map((post) => (
+                          <tr key={post.index} className="hover:bg-zinc-900/30 transition-colors">
+                            <td className="py-3.5 px-6 text-zinc-600 font-bold">
+                              {post.day}
+                            </td>
+                            <td className="py-3.5 px-6 font-bold text-zinc-350">
+                              {post.date}
+                            </td>
+                            <td className="py-3.5 px-6">
+                              <span className={`px-2.5 py-1 rounded-sm text-[9px] font-black uppercase tracking-wider border ${
+                                post.type === 'Reel'
+                                  ? 'bg-[#e5a93b]/10 text-[#e5a93b] border-[#e5a93b]/20'
+                                  : post.type === 'Poster'
+                                  ? 'bg-zinc-900 text-zinc-450 border-zinc-800'
+                                  : 'bg-[#0d3e2c]/20 text-[#ebd8c7] border-[#0d3e2c]/40'
+                              }`}>
+                                {post.type}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-6 text-[#ebd8c7] max-w-xs truncate uppercase font-bold">
+                              READY TO POST
+                            </td>
+                            <td className="py-3.5 px-6 text-right">
+                              <button
+                                onClick={() => {
+                                  // Switch active tab dynamically based on target post format
+                                  const targetTab = post.type === 'Reel' ? 'Reel' : 'Poster';
+                                  setCampaignTab(targetTab);
+                                  setTimeout(() => {
+                                    const element = document.getElementById(`post-${post.index}`);
+                                    if (element) {
+                                      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }
+                                  }, 100);
+                                }}
+                                className="text-[9px] text-zinc-400 hover:text-white uppercase font-black tracking-widest bg-zinc-900 border border-zinc-800 hover:border-zinc-700 px-3 py-1.5 rounded transition-all"
+                              >
+                                Jump to post
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Sub-Tabs Selector */}
+                <div className="flex gap-4 border-b border-zinc-900 pb-4 pt-12 flex-wrap">
+                  <button
+                    onClick={() => setCampaignTab('Poster')}
+                    className={`text-[10px] font-bold uppercase tracking-widest px-5 py-2.5 border transition-all duration-300 rounded cursor-pointer ${
+                      campaignTab === 'Poster'
+                        ? 'bg-[#e5a93b] text-black border-[#e5a93b] font-black'
+                        : 'bg-zinc-950 text-zinc-400 border-zinc-900 hover:border-zinc-700 hover:text-white font-bold'
+                    }`}
+                  >
+                    1. Poster Blueprints ({campaignPosts.filter(p => p.type === 'Poster' || p.type === 'Both').length})
+                  </button>
+                  <button
+                    onClick={() => setCampaignTab('Reel')}
+                    className={`text-[10px] font-bold uppercase tracking-widest px-5 py-2.5 border transition-all duration-300 rounded cursor-pointer ${
+                      campaignTab === 'Reel'
+                        ? 'bg-[#e5a93b] text-black border-[#e5a93b] font-black'
+                        : 'bg-zinc-950 text-zinc-400 border-zinc-900 hover:border-zinc-700 hover:text-white font-bold'
+                    }`}
+                  >
+                    2. Reel Directions (Videos) ({campaignPosts.filter(p => p.type === 'Reel' || p.type === 'Both').length})
+                  </button>
+                </div>
+
+                {/* 3. Posters Section */}
+                {campaignTab === 'Poster' && (
+                  <div className="space-y-12 pt-8">
+                    <div>
+                      <h2 className="text-2xl font-black tracking-tight text-white uppercase font-sans">
+                        Poster Blueprints
+                      </h2>
+                      <p className="text-zinc-600 text-[10px] uppercase font-mono mt-1">
+                        Static visual campaigns targeted for grid feeds and community channels
+                      </p>
+                    </div>
+
+                  <div className="space-y-16">
+                    {(() => {
+                      const posters = campaignPosts.filter(post => post.type === 'Poster' || post.type === 'Both');
+                      
+                      const campaignImagesMap: Record<number, { src: string; fallbackLabel: string; bgGradient: string; description: string }> = {
+                        1: { src: "/may22.png", fallbackLabel: "THE JOURNEY STARTS HERE.", bgGradient: "from-emerald-950 via-zinc-950 to-zinc-900", description: "Official S2S announcement banner featuring the Unstop logo, challenge phases timeline details, and 'PAN INDIA • SOLO • ONLINE' specifications." },
+                        2: { src: "/may23.png", fallbackLabel: "15 DAYS LEFT", bgGradient: "from-zinc-900 via-neutral-950 to-emerald-950", description: "Tactical countdown visual highlighting the Giant Chess King element, focused on urging early builders to think ahead and register." },
+                        3: { src: "/may24.png", fallbackLabel: "YOUR IDEA DESERVES A STAGE.", bgGradient: "from-amber-950 via-zinc-950 to-zinc-900", description: "Inspirational design showing a student standing beneath a golden spotlight beam representing the physical and virtual ecosystem showcase stage." },
+                        4: { src: "/may25.png", fallbackLabel: "MOST STUDENTS CONSUME. FEW BUILD.", bgGradient: "from-[#021f11] via-zinc-950 to-[#0c0d10]", description: "A dark premium green graphic featuring a student crafting code next to a giant glossy black Chess King, emphasizing the S2S builder identity." },
+                        5: { src: "/may26.png", fallbackLabel: "THE PATH IS CLEAR.", bgGradient: "from-zinc-950 via-[#041d13] to-neutral-950", description: "Action-oriented visual of a boardroom table with a gavel, open registration form binder, and active laptop telemetry boards." },
+                        6: { src: "/may27.png", fallbackLabel: "ECOSYSTEM COLLAB (FLUXIO VIDEO REEL)", bgGradient: "from-zinc-950 via-orange-950/30 to-black", description: "High-octane reels visual overlaying creative direction benchmarks from Fluxio Live onto student pitch templates." },
+                        7: { src: "/may28.png", fallbackLabel: "10 DAYS LEFT", bgGradient: "from-zinc-900 via-zinc-950 to-neutral-950", description: "Dual-material black and white chess Kings facing each other on a checkerboard, creating immediate registration urgency." },
+                        8: { src: "/may29.png", fallbackLabel: "₹10,000 PRIZE POOL. CERTIFICATES. MENTORSHIP.", bgGradient: "from-amber-950/80 via-zinc-950 to-black", description: "A close-up of the official golden School2Startup trophy, showcasing early winner certificates and a strong ecosystem integration handshake." },
+                        9: { src: "/may30.png", fallbackLabel: "WHAT WOULD YOU BUILD?", bgGradient: "from-[#042115] via-zinc-950 to-zinc-900", description: "An elegant, highly composed scene featuring a glowing amber lightbulb on a green mid-century chair alongside active wireframe notebooks." },
+                        10: { src: "/may31.png", fallbackLabel: "THE JOURNEY STARTS NOW.", bgGradient: "from-zinc-950 via-emerald-950/30 to-[#020d0a]", description: "Detailed dashboard flat-lay showing active pitch decks, clipboards, badges, mugs, and startup checklists on an executive surface." },
+                        11: { src: "/june1.png", fallbackLabel: "THE STAGE IS SET. ARE YOU?", bgGradient: "from-[#0c0a02] via-[#051410] to-neutral-950", description: "A dark moody stage view displaying a classic microphone illuminated under a warm spotlight, looking out toward an audience panel." },
+                        12: { src: "/june2.png", fallbackLabel: "5 DAYS LEFT.", bgGradient: "from-[#031d10] via-zinc-950 to-black", description: "Group poster of four youth builders showcasing their deliverables: pitch deck notebook, AI chip, photography camera, and drone." },
+                        13: { src: "/june3.png", fallbackLabel: "4 DAYS LEFT.", bgGradient: "from-amber-950/40 via-[#011c10] to-zinc-950", description: "Podium layout featuring a glowing lightbulb on a designer chair surrounded by flying pitch drafts, chess pieces, and rockets." },
+                        14: { src: "/june4.png", fallbackLabel: "3 DAYS LEFT.", bgGradient: "from-[#081b2e] via-zinc-950 to-black", description: "Dynamic high-action visual of a student running to catch a sleek golden subway train with the destination sign reading 'OPPORTUNITY'." },
+                        15: { src: "/june5.png", fallbackLabel: "2 DAYS LEFT.", bgGradient: "from-emerald-950/50 via-zinc-950 to-black", description: "An incredibly detailed top-down flat-lay shot of students collaborating at a dark green executive table of devices, notebooks, and plans." },
+                        16: { src: "/june6.png", fallbackLabel: "24 HOURS LEFT.", bgGradient: "from-zinc-950 via-[#1a0505] to-[#141416]", description: "A surreal avant-garde visual of a student builder seated on a mahogany chair with a classic manual camera styled as their head." }
+                      };
+
+                      return posters.map((post, idx) => {
+                        const isEven = idx % 2 === 0;
+                        const imageInfo = campaignImagesMap[post.index] || {
+                           src: "/may22.png",
+                           fallbackLabel: post.title,
+                           bgGradient: "from-zinc-950 to-zinc-900"
+                        };
+                        const fileName = imageInfo.src.replace(/^\//, '');
+
+                        const candidateSrcs = getCandidatePosterSrcs(post.index);
+                        const currentRetryIdx = retryIndices[post.index] || 0;
+                        const currentSrc = currentRetryIdx < candidateSrcs.length ? candidateSrcs[currentRetryIdx] : candidateSrcs[candidateSrcs.length - 1];
+
+                        const isSquare = post.dimension.toLowerCase().includes('1:1') || post.dimension.toLowerCase().includes('square');
+                        const isReel = (post.type as string) === 'Reel' || post.dimension.toLowerCase().includes('9:16');
+                        const containerAspect = isReel ? 'aspect-[9/16] max-h-[580px] w-auto mx-auto' : isSquare ? 'aspect-square w-full' : 'aspect-[4/5] w-full';
+                        const imgStyleClass = 'object-contain bg-zinc-950/90 w-full h-full';
+
+                        return (
+                          <div 
+                            id={`post-${post.index}`}
+                            key={post.index}
+                            className="bg-zinc-950/60 border border-zinc-900 hover:border-amber-950/30 p-6 md:p-10 rounded-lg hover:bg-zinc-950/90 transition-all duration-500 shadow-xl"
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center h-full">
+                              
+                              {/* Left Image Column */}
+                              <div className="w-full h-full flex flex-col justify-center">
+                                <div className={`${containerAspect} relative overflow-hidden rounded-lg border border-zinc-900/60 bg-gradient-to-br ${imageInfo.bgGradient} flex flex-col justify-between p-6 shadow-2xl`}>
+                                  
+                                  {/* Color overlay */}
+                                  <div className="absolute inset-0 bg-black/40 mix-blend-overlay pointer-events-none" />
+                                  
+                                  {/* Top header stats bar */}
+                                  <div className="flex justify-between items-start z-10">
+                                    <span className="text-[9px] font-mono font-bold tracking-widest bg-black/60 backdrop-blur-md text-[#e5a93b] px-2.5 py-1 rounded border border-[#e5a93b]/20">
+                                      ASSET {post.day.toUpperCase()}
+                                    </span>
+                                  </div>
+
+                                  {/* Poster visual layout mock */}
+                                  <div className="my-auto text-center space-y-4 z-10 px-3 py-6">
+                                    <div className="text-zinc-[650] font-mono text-[9px] uppercase tracking-widest leading-none">
+                                      ✕ EXPECTED GRAPHIC ✕
+                                    </div>
+                                    <h2 className="font-['Bebas_Neue'] text-3xl md:text-4xl text-zinc-100 tracking-widest uppercase leading-none px-2 drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]">
+                                      {post.date.toUpperCase()}
+                                    </h2>
+                                    <div className="h-[2px] w-12 bg-[#e5a93b]/30 mx-auto rounded-full" />
+                                  </div>
+
+                                  {/* Bottom timeline stamps bar */}
+                                  <div className="flex justify-between items-end z-10 border-t border-zinc-900/60 pt-4 font-mono text-[9px]">
+                                    <div>
+                                      <span className="text-[7px] block text-zinc-600 uppercase tracking-wider">FILENAME</span>
+                                      <span className="font-bold text-zinc-300 uppercase">{fileName}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[7px] block text-zinc-600 uppercase tracking-wider text-right font-mono">SPEC</span>
+                                      <span className="font-bold text-[#e5a93b] uppercase">{post.dimension.split(' ')[0]}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Real loaded Image with Sequential Try Logic and Unsplash Fallback */}
+                                  <img 
+                                    src={currentSrc} 
+                                    alt={post.date} 
+                                    referrerPolicy="no-referrer"
+                                    className={`absolute inset-0 w-full h-full ${imgStyleClass} rounded-lg opacity-0 transition-opacity duration-700 pointer-events-none`}
+                                    onLoad={(e) => {
+                                      const imgEl = e.target as HTMLImageElement;
+                                      imgEl.classList.remove('opacity-0');
+                                      imgEl.classList.add('opacity-100', 'z-20');
+                                    }}
+                                    onError={() => {
+                                      if (currentRetryIdx < candidateSrcs.length - 1) {
+                                        setRetryIndices(prev => ({
+                                          ...prev,
+                                          [post.index]: currentRetryIdx + 1
+                                        }));
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Right Text Column */}
+                              <div className="flex flex-col justify-between h-auto space-y-6">
+                                <div className="space-y-4">
+                                  {/* Header has filename */}
+                                  <div className="border-b border-zinc-900 pb-3">
+                                    <span className="text-[9px] font-mono text-[#e5a93b] uppercase tracking-widest font-black bg-[#e5a93b]/10 px-2 py-0.5 rounded border border-[#e5a93b]/10">
+                                      {post.day} • READY TO POST
+                                    </span>
+                                    <h3 className="text-xl md:text-2xl font-black font-sans tracking-tight text-white uppercase leading-tight mt-2">
+                                      {post.date}
+                                    </h3>
+                                  </div>
+
+                                  {/* Paste-Ready Caption Area */}
+                                  <div className="bg-zinc-950 p-5 rounded border border-zinc-900 space-y-3">
+                                    <div className="flex justify-between items-center gap-2 flex-wrap">
+                                      <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest font-mono">
+                                        READY TO PASTE IN POST:
+                                      </span>
+                                      
+                                      <div className="flex items-center gap-2">
+                                        <button 
+                                          onClick={() => handleCopyCaption(post.caption, post.index)}
+                                          className={`flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded transition-all duration-300 ${
+                                            copiedIndex === post.index 
+                                              ? 'bg-[#006241]/25 text-[#00ff88] border border-[#006241]/40' 
+                                              : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-805'
+                                          }`}
+                                        >
+                                          {copiedIndex === post.index ? (
+                                            <>
+                                              <Check className="w-3 h-3" />
+                                              COPIED
+                                            </>
+                                          ) : (
+                                            'COPY CAPTION'
+                                          )}
+                                        </button>
+
+                                        <button 
+                                          onClick={() => handleDownloadImage(currentSrc, `S2S_Campaign_${post.day.replace(/\s+/g, '_')}.png`, post.index)}
+                                          className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded transition-all duration-300 bg-amber-500 hover:bg-amber-600 text-black border border-amber-500"
+                                        >
+                                          <Download className="w-3 h-3" strokeWidth={3} />
+                                          DOWNLOAD
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div className="max-h-48 overflow-y-auto bg-black p-4 rounded border border-zinc-900 text-[10.5px] font-mono leading-relaxed text-zinc-400 select-all whitespace-pre-wrap scrollbar-thin">
+                                      {post.caption}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+                )}
+
+                {/* 4. Reels Section */}
+                {campaignTab === 'Reel' && (
+                  <div className="space-y-12 pt-8 border-t border-zinc-900">
+                    <div>
+                      <h2 className="text-2xl font-black tracking-tight text-white uppercase font-sans">
+                        Reel Directions
+                      </h2>
+                      <p className="text-zinc-600 text-[10px] uppercase font-mono mt-1">
+                        Dynamic vertical high-octane visual directions and loops for short-form video formats
+                      </p>
+                    </div>
+
+                  <div className="space-y-16">
+                    {(() => {
+                      const reels = campaignPosts.filter(post => post.type === 'Reel' || post.type === 'Both');
+                      
+                      const campaignImagesMap: Record<number, { src: string; fallbackLabel: string; bgGradient: string; description: string }> = {
+                        1: { src: "/may22.png", fallbackLabel: "THE JOURNEY STARTS HERE.", bgGradient: "from-emerald-950 via-zinc-950 to-zinc-900", description: "Official S2S announcement banner featuring the Unstop logo, challenge phases timeline details, and 'PAN INDIA • SOLO • ONLINE' specifications." },
+                        2: { src: "/may23.png", fallbackLabel: "15 DAYS LEFT", bgGradient: "from-zinc-900 via-neutral-950 to-emerald-950", description: "Tactical countdown visual highlighting the Giant Chess King element, focused on urging early builders to think ahead and register." },
+                        3: { src: "/may24.png", fallbackLabel: "YOUR IDEA DESERVES A STAGE.", bgGradient: "from-amber-950 via-zinc-950 to-zinc-900", description: "Inspirational design showing a student standing beneath a golden spotlight beam representing the physical and virtual ecosystem showcase stage." },
+                        4: { src: "/may25.png", fallbackLabel: "MOST STUDENTS CONSUME. FEW BUILD.", bgGradient: "from-[#021f11] via-zinc-950 to-[#0c0d10]", description: "A dark premium green graphic featuring a student crafting code next to a giant glossy black Chess King, emphasizing the S2S builder identity." },
+                        5: { src: "/may26.png", fallbackLabel: "THE PATH IS CLEAR.", bgGradient: "from-zinc-950 via-[#041d13] to-neutral-950", description: "Action-oriented visual of a boardroom table with a gavel, open registration form binder, and active laptop telemetry boards." },
+                        6: { src: "/may27.png", fallbackLabel: "ECOSYSTEM COLLAB (FLUXIO VIDEO REEL)", bgGradient: "from-zinc-950 via-orange-950/30 to-black", description: "High-octane reels visual overlaying creative direction benchmarks from Fluxio Live onto student pitch templates." },
+                        7: { src: "/may28.png", fallbackLabel: "10 DAYS LEFT", bgGradient: "from-zinc-900 via-zinc-950 to-neutral-950", description: "Dual-material black and white chess Kings facing each other on a checkerboard, creating immediate registration urgency." },
+                        8: { src: "/may29.png", fallbackLabel: "₹10,000 PRIZE POOL. CERTIFICATES. MENTORSHIP.", bgGradient: "from-amber-950/80 via-zinc-950 to-black", description: "A close-up of the official golden School2Startup trophy, showcasing early winner certificates and a strong ecosystem integration handshake." },
+                        9: { src: "/may30.png", fallbackLabel: "WHAT WOULD YOU BUILD?", bgGradient: "from-[#042115] via-zinc-950 to-zinc-900", description: "An elegant, highly composed scene featuring a glowing amber lightbulb on a green mid-century chair alongside active wireframe notebooks." },
+                        10: { src: "/may31.png", fallbackLabel: "THE JOURNEY STARTS NOW.", bgGradient: "from-zinc-950 via-emerald-950/30 to-[#020d0a]", description: "Detailed dashboard flat-lay showing active pitch decks, clipboards, badges, mugs, and startup checklists on an executive surface." },
+                        11: { src: "/june1.png", fallbackLabel: "THE STAGE IS SET. ARE YOU?", bgGradient: "from-[#0c0a02] via-[#051410] to-neutral-950", description: "A dark moody stage view displaying a classic microphone illuminated under a warm spotlight, looking out toward an audience panel." },
+                        12: { src: "/june2.png", fallbackLabel: "5 DAYS LEFT.", bgGradient: "from-[#031d10] via-zinc-950 to-black", description: "Group poster of four youth builders showcasing their deliverables: pitch deck notebook, AI chip, photography camera, and drone." },
+                        13: { src: "/june3.png", fallbackLabel: "4 DAYS LEFT.", bgGradient: "from-amber-950/40 via-[#011c10] to-zinc-950", description: "Podium layout featuring a glowing lightbulb on a designer chair surrounded by flying pitch drafts, chess pieces, and rockets." },
+                        14: { src: "/june4.png", fallbackLabel: "3 DAYS LEFT.", bgGradient: "from-[#081b2e] via-zinc-950 to-black", description: "Dynamic high-action visual of a student running to catch a sleek golden subway train with the destination sign reading 'OPPORTUNITY'." },
+                        15: { src: "/june5.png", fallbackLabel: "2 DAYS LEFT.", bgGradient: "from-emerald-950/50 via-zinc-950 to-black", description: "An incredibly detailed top-down flat-lay shot of students collaborating at a dark green executive table of devices, notebooks, and plans." },
+                        16: { src: "/june6.png", fallbackLabel: "24 HOURS LEFT.", bgGradient: "from-zinc-950 via-[#1a0505] to-[#141416]", description: "A surreal avant-garde visual of a student builder seated on a mahogany chair with a classic manual camera styled as their head." }
+                      };
+
+                      return reels.map((post, idx) => {
+                        const isEven = idx % 2 === 0;
+                        const imageInfo = campaignImagesMap[post.index] || {
+                          src: "/may22.png",
+                          fallbackLabel: post.title,
+                          bgGradient: "from-zinc-950 to-zinc-900"
+                        };
+                        const fileName = imageInfo.src.replace(/^\//, '');
+
+                        const candidateSrcs = getCandidateReelSrcs(post.index);
+                        const currentRetryIdx = retryIndices[post.index] || 0;
+                        const currentSrc = currentRetryIdx < candidateSrcs.length ? candidateSrcs[currentRetryIdx] : candidateSrcs[candidateSrcs.length - 1];
+
+                        const isSquare = post.dimension.toLowerCase().includes('1:1') || post.dimension.toLowerCase().includes('square');
+                        const isReel = post.type === 'Reel' || post.dimension.toLowerCase().includes('9:16');
+                        const containerAspect = isReel ? 'aspect-[9/16] max-h-[580px] w-auto mx-auto' : isSquare ? 'aspect-square w-full' : 'aspect-[4/5] w-full';
+                        const imgStyleClass = 'object-contain bg-zinc-950/90 w-full h-full';
+
+                        const isVideo = currentSrc.toLowerCase().endsWith('.mp4') || currentSrc.toLowerCase().endsWith('.mov') || currentSrc.includes('assets.mixkit.co');
+
+                        return (
+                          <div 
+                            id={`post-${post.index}`}
+                            key={post.index}
+                            className="bg-zinc-950/60 border border-zinc-900 hover:border-[#ebd8c7]/20 p-6 md:p-10 rounded-lg hover:bg-zinc-950/90 transition-all duration-500 shadow-xl"
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center h-full">
+                              
+                              {/* Left Image/Video Column */}
+                              <div className="w-full h-full flex flex-col justify-center">
+                                <div className={`${containerAspect} relative overflow-hidden rounded-lg border border-zinc-900/60 bg-gradient-to-br ${imageInfo.bgGradient} flex flex-col justify-between p-6 shadow-2xl`}>
+                                  
+                                  {/* Color overlay */}
+                                  <div className="absolute inset-0 bg-black/40 mix-blend-overlay pointer-events-none" />
+                                  
+                                  {/* Top header stats bar */}
+                                  <div className="absolute top-6 left-6 z-10">
+                                    <span className="text-[9px] font-mono font-bold tracking-widest bg-black/60 backdrop-blur-md text-[#e5a93b] px-2.5 py-1 rounded border border-[#e5a93b]/20">
+                                      ASSET {post.day.toUpperCase()}
+                                    </span>
+                                  </div>
+
+                                  {/* Poster visual layout mock */}
+                                  <div className="my-auto text-center space-y-4 z-10 px-3 py-6">
+                                    <div className="text-zinc-[650] font-mono text-[9px] uppercase tracking-widest leading-none">
+                                      ✕ EXPECTED GRAPHIC ✕
+                                    </div>
+                                    <h2 className="font-['Bebas_Neue'] text-3xl md:text-4xl text-zinc-100 tracking-widest uppercase leading-none px-2 drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]">
+                                      {post.date.toUpperCase()}
+                                    </h2>
+                                    <div className="h-[2px] w-12 bg-[#e5a93b]/30 mx-auto rounded-full" />
+                                  </div>
+
+                                  {/* Bottom timeline stamps bar */}
+                                  <div className="flex justify-between items-end z-10 border-t border-zinc-900/60 pt-4 font-mono text-[9px]">
+                                    <div>
+                                      <span className="text-[7px] block text-zinc-600 uppercase tracking-wider">FILENAME</span>
+                                      <span className="font-bold text-zinc-300 uppercase">{fileName}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[7px] block text-zinc-600 uppercase tracking-wider text-right font-mono">SPEC</span>
+                                      <span className="font-bold text-[#e5a93b] uppercase">{post.dimension.split(' ')[0]}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Dynamic Player: Video Loop or Image Fallback with Try Logic */}
+                                  {isVideo ? (
+                                    <ReelVideoPlayer
+                                      src={currentSrc}
+                                      imgStyleClass={imgStyleClass}
+                                      onError={() => {
+                                        if (currentRetryIdx < candidateSrcs.length - 1) {
+                                          setRetryIndices(prev => ({
+                                            ...prev,
+                                            [post.index]: currentRetryIdx + 1
+                                          }));
+                                        }
+                                      }}
+                                    />
+                                  ) : (
+                                    <img 
+                                      src={currentSrc} 
+                                      alt={post.date} 
+                                      referrerPolicy="no-referrer"
+                                      className={`absolute inset-0 w-full h-full ${imgStyleClass} rounded-lg opacity-0 transition-opacity duration-700 pointer-events-none`}
+                                      onLoad={(e) => {
+                                        const imgEl = e.target as HTMLImageElement;
+                                        imgEl.classList.remove('opacity-0');
+                                        imgEl.classList.add('opacity-100', 'z-20');
+                                      }}
+                                      onError={() => {
+                                        if (currentRetryIdx < candidateSrcs.length - 1) {
+                                          setRetryIndices(prev => ({
+                                            ...prev,
+                                            [post.index]: currentRetryIdx + 1
+                                          }));
+                                        }
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Right Text Column */}
+                              <div className="flex flex-col justify-between h-auto space-y-6">
+                                <div className="space-y-4">
+                                  {/* Header has filename */}
+                                  <div className="border-b border-zinc-900 pb-3">
+                                    <span className="text-[9px] font-mono text-[#e5a93b] uppercase tracking-widest font-black bg-[#e5a93b]/10 px-2 py-0.5 rounded border border-[#e5a93b]/10">
+                                      {post.day} • READY TO POST
+                                    </span>
+                                    <h3 className="text-xl md:text-2xl font-black font-sans tracking-tight text-white uppercase leading-tight mt-2">
+                                      {post.date}
+                                    </h3>
+                                  </div>
+
+                                  {/* Paste-Ready Caption Area */}
+                                  <div className="bg-zinc-950 p-5 rounded border border-zinc-900 space-y-3">
+                                    <div className="flex justify-between items-center gap-2 flex-wrap">
+                                      <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest font-mono">
+                                        READY TO PASTE IN POST:
+                                      </span>
+                                      
+                                      <div className="flex items-center gap-2">
+                                        <button 
+                                          onClick={() => handleCopyCaption(post.reelCaption || post.caption, post.index)}
+                                          className={`flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded transition-all duration-300 ${
+                                            copiedIndex === post.index 
+                                              ? 'bg-[#006241]/25 text-[#00ff88] border border-[#006241]/40' 
+                                              : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-805'
+                                          }`}
+                                        >
+                                          {copiedIndex === post.index ? (
+                                            <>
+                                              <Check className="w-3 h-3" />
+                                              COPIED
+                                            </>
+                                          ) : (
+                                            'COPY CAPTION'
+                                          )}
+                                        </button>
+
+                                        <button 
+                                          onClick={() => handleDownloadImage(currentSrc, `S2S_Campaign_${post.day.replace(/\s+/g, '_')}.png`, post.index)}
+                                          className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded transition-all duration-300 bg-amber-500 hover:bg-amber-600 text-black border border-amber-500"
+                                        >
+                                          <Download className="w-3 h-3" strokeWidth={3} />
+                                          DOWNLOAD
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div className="max-h-48 overflow-y-auto bg-black p-4 rounded border border-zinc-900 text-[10.5px] font-mono leading-relaxed text-zinc-400 select-all whitespace-pre-wrap scrollbar-thin">
+                                      {post.reelCaption || post.caption}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+                )}
+
+                {/* Back to Portal Footer */}
+                <div className="mt-20 border-t border-zinc-900 pt-16 text-center">
+                  <h3 className="font-['Bebas_Neue'] text-5xl md:text-7xl leading-none text-zinc-800 uppercase hover:text-[#e5a93b] transition-colors cursor-default mb-10">
+                    Dimension 03 Connected
+                  </h3>
+                  <button 
+                    onClick={() => { setCurrentView('portal'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="px-12 py-5 border border-zinc-800 hover:border-zinc-700 bg-zinc-950 text-zinc-400 hover:text-white text-[10px] font-bold uppercase tracking-[0.3em] rounded transition-all"
+                  >
+                    ← Return to Ecosystem Portal
+                  </button>
+                </div>
+              </section>
+            </motion.div>
           ) : project && (
             <motion.section
               key="project"
@@ -954,7 +3426,7 @@ Submitted via Fluxio Live Portal
                   <h2 className="label-mini mb-12">10 Day Post-Launch Strategy</h2>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {roadmap.map((step, idx) => (
-                      <div key={idx} className="bg-zinc-950/40 border border-zinc-900 p-8 rounded border-b-2 border-b-zinc-800 hover:border-b-yellow-500 transition-all">
+                      <div key={idx} className="bg-zinc-950/40 border border-zinc-900 p-8 rounded border-b-2 border-b-zinc-800 hover:border-b-[#e5a93b] transition-all">
                         <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest block mb-4 italic">{step.days}</span>
                         <h4 className="text-sm font-bold text-white uppercase mb-2">{step.title}</h4>
                         <p className="text-[11px] text-zinc-500 leading-relaxed">
