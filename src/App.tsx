@@ -2088,8 +2088,8 @@ Created by Fluxio Live Ecosystem Server Protocol.`;
     }, 2000);
   };
 
-  const handleDownloadImage = async (src: string, filename: string, index: number) => {
-    const driveId = googleDrivePosterIds[index] || googleDriveReelIds[index];
+  const handleDownloadImage = async (src: string, filename: string, index: number, isReel?: boolean) => {
+    const driveId = isReel ? (googleDriveReelIds[index] || googleDrivePosterIds[index]) : (googleDrivePosterIds[index] || googleDriveReelIds[index]);
     if (driveId) {
       const directUrl = `https://drive.google.com/uc?export=download&id=${driveId}`;
       const link = document.createElement('a');
@@ -3230,7 +3230,12 @@ Submitted via Fluxio Live Portal
                                         </button>
 
                                         <button 
-                                          onClick={() => handleDownloadImage(currentSrc, `S2S_Campaign_${post.day.replace(/\s+/g, '_')}.png`, post.index)}
+                                          onClick={() => handleDownloadImage(
+                                            currentSrc, 
+                                            `S2S_Campaign_${post.day.replace(/\s+/g, '_')}.${isVideo ? (currentSrc.toLowerCase().includes('.mov') ? 'mov' : 'mp4') : 'png'}`, 
+                                            post.index,
+                                            true
+                                          )}
                                           className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded transition-all duration-300 bg-amber-500 hover:bg-amber-600 text-black border border-amber-500"
                                         >
                                           <Download className="w-3 h-3" strokeWidth={3} />
@@ -3238,7 +3243,7 @@ Submitted via Fluxio Live Portal
                                         </button>
                                       </div>
                                     </div>
-                                    <div className="max-h-48 overflow-y-auto bg-black p-4 rounded border border-zinc-900 text-[10.5px] font-mono leading-relaxed text-zinc-400 select-all whitespace-pre-wrap scrollbar-thin">
+                                    <div className="max-h-48 overflow-y-auto bg-black p-4 rounded border border-[#0c0d10] text-[10.5px] font-mono leading-relaxed text-zinc-400 select-all whitespace-pre-wrap scrollbar-thin">
                                       {post.reelCaption || post.caption}
                                     </div>
                                   </div>
